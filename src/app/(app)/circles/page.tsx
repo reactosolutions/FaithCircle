@@ -1,38 +1,58 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import {
   listAdvisorCandidates,
+  listCirclesForProfile,
   listCirclesWithDetails,
   listStudentCandidates,
 } from "@/features/circles/queries";
 import { CreateCircleDialog } from "@/features/circles/components/create-circle-dialog";
 import { CirclesList } from "@/features/circles/components/circles-list";
+import { MyCirclesList } from "@/features/circles/components/my-circles-list";
+import { Pagination } from "@/components/ui/pagination";
 import { PageHeader } from "@/components/app-shell/page-header";
 
-export default async function CirclesPage() {
-  const supabase = await createClient();
-  const user = await getCachedUser();
+export default async function CirclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
   const t = await getTranslations("Circles");
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
 
-  if (profile?.role !== "admin") {
-    notFound();
+  if (!profile) {
+    redirect("/sign-in");
   }
 
-  const [circles, advisorCandidates, studentCandidates] = await Promise.all([
-    listCirclesWithDetails(),
+  // Non-admin: a read-only "my circles" view scoped to circles this viewer
+  // leads or belongs to — not the org-wide management page below, which is
+  // admin-only (circles.create, and every circle's roster/advisors).
+  if (profile.role !== "admin") {
+    const circles = await listCirclesForProfile(profile.id);
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title={t("title")} description={t("count", { count: circles.length })} />
+        <MyCirclesList circles={circles} />
+      </div>
+    );
+  }
+
+  const page = Math.max(1, Number(params.page) || 1);
+
+  const [{ circles, total, pageSize }, advisorCandidates, studentCandidates] = await Promise.all([
+    listCirclesWithDetails({ page }),
     listAdvisorCandidates(),
     listStudentCandidates(),
   ]);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title={t("title")}
-        description={t("count", { count: circles.length })}
+        description={t("count", { count: total })}
         action={
           <CreateCircleDialog advisorCandidates={advisorCandidates} studentCandidates={studentCandidates} />
         }
@@ -44,6 +64,8 @@ export default async function CirclesPage() {
           <CreateCircleDialog advisorCandidates={advisorCandidates} studentCandidates={studentCandidates} />
         }
       />
+
+      <Pagination page={page} pageCount={pageCount} basePath="/circles" searchParams={{}} />
     </div>
   );
 }

@@ -43,6 +43,11 @@ interface ResponsiveDialogProps {
   // dense contexts like a table row's action cluster.
   triggerIcon?: string
   dialogContentClassName?: string
+  // When true, the built-in Drawer trigger button isn't rendered at all —
+  // for callers that open the Drawer from elsewhere (e.g. a dropdown menu
+  // item in a condensed mobile row) and drive `mobileOpen` themselves. The
+  // desktop trigger is unaffected.
+  hideMobileTrigger?: boolean
   title: string
   description?: string
   children: React.ReactNode
@@ -64,6 +69,7 @@ export function ResponsiveDialog({
   triggerClassName,
   triggerIcon,
   dialogContentClassName,
+  hideMobileTrigger,
   title,
   description,
   children,
@@ -95,18 +101,20 @@ export function ResponsiveDialog({
   return (
     <>
       <Drawer open={mobileOpen} onOpenChange={onMobileOpenChange}>
-        <DrawerTrigger
-          render={
-            <Button
-              variant={triggerVariant}
-              size={triggerIcon ? "icon-sm" : "default"}
-              aria-label={triggerIcon ? triggerLabel : undefined}
-              className={cn("rounded-full md:hidden", triggerClassName)}
-            />
-          }
-        >
-          {triggerContent}
-        </DrawerTrigger>
+        {!hideMobileTrigger && (
+          <DrawerTrigger
+            render={
+              <Button
+                variant={triggerVariant}
+                size={triggerIcon ? "icon-sm" : "default"}
+                aria-label={triggerIcon ? triggerLabel : undefined}
+                className={cn("rounded-full md:hidden", triggerClassName)}
+              />
+            }
+          >
+            {triggerContent}
+          </DrawerTrigger>
+        )}
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>

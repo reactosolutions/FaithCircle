@@ -39,7 +39,7 @@ export function CalendarNav({
         className="rounded-full"
         onClick={() => go(step(anchor, -1))}
       >
-        <Icon name="chevron_left" size={18} />
+        <Icon name="chevron_left" size={18} data-icon="inline-start" />
       </Button>
       <span className="flex min-w-32 flex-col items-center text-center">
         <span className="text-sm font-medium">{label}</span>
@@ -52,7 +52,7 @@ export function CalendarNav({
         className="rounded-full"
         onClick={() => go(step(anchor, 1))}
       >
-        <Icon name="chevron_right" size={18} />
+        <Icon name="chevron_right" size={18} data-icon="inline-end" />
       </Button>
       <Button
         type="button"

@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { listAuditLogForRecord } from "../audit-queries";
 import { AuditLogList } from "./audit-log-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,11 +17,7 @@ export async function AuditHistorySection({
   tableName: string;
   recordId: string;
 }) {
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
 
   if (profile?.role !== "admin") {
     return null;

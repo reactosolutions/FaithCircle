@@ -176,3 +176,15 @@
     transition-property: opacity !important;
   }
 }
+
+/* Directional icons (a "previous" or "back-into-content" chevron) point the
+   wrong way once the reading direction flips — Material Symbols glyphs
+   don't mirror themselves. Icon call sites mark theirs with
+   data-icon="inline-start" / "inline-end" (logical, not "left"/"right");
+   this is the one rule that actually flips them under RTL. Never apply to
+   a genuinely directional icon like a calendar's month-scrub arrows, whose
+   meaning doesn't depend on text direction. */
+[dir="rtl"] [data-icon="inline-start"],
+[dir="rtl"] [data-icon="inline-end"] {
+  transform: scaleX(-1);
+}

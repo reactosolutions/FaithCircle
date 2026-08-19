@@ -12,13 +12,14 @@ export function Icon({
   size = 24,
   filled = false,
   weight = 400,
+  ...props
 }: {
   name: string;
   className?: string;
   size?: number;
   filled?: boolean;
   weight?: 300 | 400 | 500 | 600 | 700;
-}) {
+} & Omit<React.ComponentProps<"span">, "className" | "style" | "children">) {
   return (
     <span
       className={cn("material-symbols-outlined inline-block shrink-0 leading-none select-none", className)}
@@ -29,6 +30,7 @@ export function Icon({
         fontVariationSettings: `'FILL' ${filled ? 1 : 0}, 'wght' ${weight}, 'GRAD' 0, 'opsz' ${size}`,
       }}
       aria-hidden="true"
+      {...props}
     >
       {name}
     </span>

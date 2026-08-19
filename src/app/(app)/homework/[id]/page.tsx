@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { getAssignmentDetail, getReviewQueue } from "@/features/homework/queries";
 import { AnswerEditor } from "@/features/homework/components/answer-editor";
 import { ReviewQueue } from "@/features/homework/components/review-queue";
@@ -21,7 +22,9 @@ export default async function AssignmentDetailPage({
 }) {
   const { id } = await params;
   const t = await getTranslations("Homework");
-  const result = await getAssignmentDetail(id);
+  // Independent of each other — one parallel round trip instead of two
+  // sequential ones.
+  const [result, profile] = await Promise.all([getAssignmentDetail(id), getViewerProfile()]);
   if (!result) {
     notFound();
   }
@@ -29,9 +32,6 @@ export default async function AssignmentDetailPage({
 
   const supabase = await createClient();
   const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
 
   // The rule from CLAUDE.md: an administrative user is both author and
   // answerer, and sees both at once — the answer editor above always

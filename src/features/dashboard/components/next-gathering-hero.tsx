@@ -50,7 +50,7 @@ export function NextGatheringHero({ event }: { event: EventLike | null }) {
           <FormatBadge format={event.format} />
         </div>
         <div className="mt-2">
-          <Button className="w-fit rounded-full" render={<Link href={`/events/${event.id}`} />}>
+          <Button className="w-full rounded-full sm:w-fit" render={<Link href={`/events/${event.id}`} />}>
             {t("heroCta")}
           </Button>
         </div>

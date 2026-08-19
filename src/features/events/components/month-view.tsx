@@ -15,7 +15,12 @@ import { FORMAT_BG_CLASS, FORMAT_BORDER_CLASS, FORMAT_ICON_NAME, FORMAT_TEXT_CLA
 import { Icon } from "@/components/ui/icon";
 import { hijri } from "@/lib/format";
 import { ScheduleEventDialog } from "./schedule-event-dialog";
-import type { HostCandidate, InviteCandidate, OtherCircle } from "./schedule-event-dialog/constants";
+import type {
+  HostCandidate,
+  InviteCandidate,
+  OtherCircle,
+  SchedulableCircle,
+} from "./schedule-event-dialog/constants";
 import type { Database, LanguagePreference } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
@@ -23,14 +28,17 @@ type EventRow = Database["public"]["Tables"]["events"]["Row"];
 // Scheduling props are all optional and only provided together (see
 // EventsPage) — when present and the viewer has schedule permission,
 // clicking a day box opens the same schedule-meeting dialog used by the
-// page header's "Schedule" button, pre-filled with that day's date.
+// page header's "Schedule" button, pre-filled with that day's date. Every
+// map here is keyed by circle id since the calendar now shows every
+// circle's events combined and the dialog's own owning-circle dropdown
+// picks which one to pre-fill data for.
 interface SchedulingProps {
   canSchedule?: boolean;
-  circleId?: string;
-  hosts?: HostCandidate[];
-  otherCircles?: OtherCircle[];
-  inviteCandidates?: InviteCandidate[];
-  ownCircleMemberCount?: number;
+  schedulableCircles?: SchedulableCircle[];
+  allCirclesWithCounts?: OtherCircle[];
+  hostsByCircle?: Record<string, HostCandidate[]>;
+  inviteCandidatesByCircle?: Record<string, InviteCandidate[]>;
+  memberCountByCircle?: Record<string, number>;
 }
 
 export function MonthView({
@@ -41,12 +49,13 @@ export function MonthView({
   weekStartsOn = 0,
   showHijri = false,
   locale = "en",
+  circles,
   canSchedule = false,
-  circleId,
-  hosts = [],
-  otherCircles = [],
-  inviteCandidates = [],
-  ownCircleMemberCount = 0,
+  schedulableCircles = [],
+  allCirclesWithCounts = [],
+  hostsByCircle = {},
+  inviteCandidatesByCircle = {},
+  memberCountByCircle = {},
 }: {
   anchor: Date;
   events: EventRow[];
@@ -58,6 +67,10 @@ export function MonthView({
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   showHijri?: boolean;
   locale?: LanguagePreference;
+  // Every circle the viewer belongs to — used only to label each event's
+  // owning circle now that the calendar combines all of them; not gated by
+  // canSchedule since labeling isn't a scheduling action.
+  circles: { id: string; name: string }[];
 } & SchedulingProps) {
   const t = useTranslations("Events");
   const ALL_WEEKDAY_LABELS = [
@@ -87,6 +100,9 @@ export function MonthView({
     list.push(event);
     eventsByDay.set(key, list);
   }
+
+  const circleNameById = new Map(circles.map((c) => [c.id, c.name]));
+  const showCircleLabel = circles.length > 1;
 
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const selectedEvents = (eventsByDay.get(selectedKey) ?? [])
@@ -128,13 +144,13 @@ export function MonthView({
                 >
                   {format(day, "d")}
                 </span>
-                {canSchedule && circleId && (
+                {canSchedule && schedulableCircles.length > 0 && (
                   <ScheduleEventDialog
-                    circleId={circleId}
-                    hosts={hosts}
-                    otherCircles={otherCircles}
-                    inviteCandidates={inviteCandidates}
-                    ownCircleMemberCount={ownCircleMemberCount}
+                    circles={schedulableCircles}
+                    allCirclesWithCounts={allCirclesWithCounts}
+                    hostsByCircle={hostsByCircle}
+                    inviteCandidatesByCircle={inviteCandidatesByCircle}
+                    memberCountByCircle={memberCountByCircle}
                     defaultStartsAt={`${key}T18:00`}
                     triggerIcon="add"
                     triggerVariant="ghost"
@@ -158,6 +174,12 @@ export function MonthView({
                       <Icon name={FORMAT_ICON_NAME[event.format]} size={12} />
                       <span className="truncate">
                         {formatEventTime(event.starts_at)} {event.title}
+                        {showCircleLabel && (
+                          <span className="text-muted-foreground">
+                            {" · "}
+                            {circleNameById.get(event.circle_id) ?? ""}
+                          </span>
+                        )}
                       </span>
                     </Link>
                   );
@@ -219,13 +241,13 @@ export function MonthView({
                 </span>
               )}
             </div>
-            {canSchedule && circleId && (
+            {canSchedule && schedulableCircles.length > 0 && (
               <ScheduleEventDialog
-                circleId={circleId}
-                hosts={hosts}
-                otherCircles={otherCircles}
-                inviteCandidates={inviteCandidates}
-                ownCircleMemberCount={ownCircleMemberCount}
+                circles={schedulableCircles}
+                allCirclesWithCounts={allCirclesWithCounts}
+                hostsByCircle={hostsByCircle}
+                inviteCandidatesByCircle={inviteCandidatesByCircle}
+                memberCountByCircle={memberCountByCircle}
                 defaultStartsAt={`${selectedKey}T18:00`}
                 triggerIcon="add"
                 triggerVariant="outline"
@@ -248,7 +270,15 @@ export function MonthView({
                 >
                   <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
                     <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
-                    <span className="truncate">{event.title}</span>
+                    <span className="truncate">
+                      {event.title}
+                      {showCircleLabel && (
+                        <span className="font-normal text-muted-foreground">
+                          {" · "}
+                          {circleNameById.get(event.circle_id) ?? ""}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   <span className="shrink-0 text-muted-foreground">
                     {formatEventTime(event.starts_at)}

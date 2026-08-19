@@ -89,7 +89,8 @@
     "moreUpcomingMeetings": "More upcoming meetings",
     "homeworkDueTitle": "Homework due",
     "pendingLabel": "Pending",
-    "lateLabel": "Late"
+    "lateLabel": "Late",
+    "circleDetailsToggle": "Circle details"
   },
   "Members": {
     "title": "Members",
@@ -99,6 +100,7 @@
     "statusInactive": "Inactive",
     "statusPending": "Pending approval",
     "selectAllAriaLabel": "Select all members",
+    "moreActionsLabel": "More actions",
     "selectedCount": "{count, plural, one {# selected} other {# selected}}",
     "bulkApproveCirclePlaceholder": "Add to circle (optional)",
     "bulkApproveButton": "Approve",
@@ -201,6 +203,7 @@
     "advisorsTitle": "Advisors",
     "membersTitle": "Members",
     "emptyCirclesTitle": "No circles yet. Create the first one above.",
+    "notInAnyCircleYet": "You're not part of a circle yet.",
     "noAdvisorAssigned": "No advisor assigned",
     "advisorsSaving": "Saving…",
     "advisorsSaveButton": "Save advisors",
@@ -230,6 +233,7 @@
     "noCircleYet": "You're not part of a circle yet — check back once you've joined one.",
     "weekOf": "Week of {date}",
     "selectCirclePlaceholder": "Select circle",
+    "circleLabel": "Circle",
     "viewMonth": "Month",
     "viewWeek": "Week",
     "viewDay": "Day",
@@ -703,7 +707,13 @@
   "Common": {
     "errorTitle": "Something went wrong.",
     "errorSubtitle": "Check your connection and try again.",
-    "tryAgainButton": "Try again"
+    "tryAgainButton": "Try again",
+    "paginationLabel": "Pagination",
+    "previousLabel": "Previous",
+    "nextLabel": "Next",
+    "pageLabel": "Page {page} of {pageCount}",
+    "listViewLabel": "List view",
+    "cardViewLabel": "Card view"
   },
   "Signup": {
     "title": "Create your account",

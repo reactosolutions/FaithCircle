@@ -2,10 +2,10 @@ import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from "date-f
 import { getTranslations } from "next-intl/server";
 import {
   getCircleMemberCount,
+  listAllCirclesWithCounts,
   listEvents,
   listHostCandidates,
   listInviteCandidates,
-  listOtherCirclesWithCounts,
   listViewerCircles,
 } from "@/features/events/queries";
 import { getViewerProfile } from "@/features/members/queries";
@@ -13,7 +13,6 @@ import { parseAnchorDate } from "@/features/events/format";
 import { hijriMonthYear } from "@/lib/format";
 import { ViewSwitcher } from "@/features/events/components/view-switcher";
 import { CalendarNav } from "@/features/events/components/calendar-nav";
-import { CircleSelect } from "@/features/events/components/circle-select";
 import { FormatFilterChips } from "@/features/events/components/format-filter-chips";
 import { MonthView } from "@/features/events/components/month-view";
 import { WeekView } from "@/features/events/components/week-view";
@@ -23,6 +22,10 @@ import { ScheduleEventDialog } from "@/features/events/components/schedule-event
 import { PageHeader } from "@/components/app-shell/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { EventFormat } from "@/lib/database.types";
+import type {
+  HostCandidate,
+  InviteCandidate,
+} from "@/features/events/components/schedule-event-dialog/constants";
 
 type View = "month" | "week" | "day" | "list";
 
@@ -36,7 +39,6 @@ export default async function EventsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    circleId?: string;
     view?: string;
     date?: string;
     selected?: string;
@@ -45,7 +47,9 @@ export default async function EventsPage({
 }) {
   const params = await searchParams;
   const t = await getTranslations("Events");
-  const circles = await listViewerCircles();
+  // Independent of each other — one parallel round trip instead of two
+  // sequential ones.
+  const [circles, viewer] = await Promise.all([listViewerCircles(), getViewerProfile()]);
 
   if (circles.length === 0) {
     return (
@@ -56,57 +60,84 @@ export default async function EventsPage({
     );
   }
 
-  const circleId =
-    params.circleId && circles.some((c) => c.id === params.circleId)
-      ? params.circleId
-      : circles[0].id;
-  const circle = circles.find((c) => c.id === circleId)!;
-
   const view: View =
     params.view === "week" || params.view === "day" || params.view === "list"
       ? params.view
       : "month";
   const anchor = parseAnchorDate(params.date);
 
-  const viewer = await getViewerProfile();
-  const canSchedule = viewer?.role === "admin" || circle.leader_id === viewer?.id;
+  // Every circle this calendar shows — always combined, no per-circle
+  // filter (see the schedule-event-dialog's own owning-circle dropdown for
+  // where "which circle" now lives instead). Scheduling is limited to
+  // circles the viewer can actually organize for: every circle for admin,
+  // only led circles for administrative.
+  const schedulableCircles =
+    viewer?.role === "admin" ? circles : circles.filter((c) => c.leader_id === viewer?.id);
+  const canSchedule = schedulableCircles.length > 0;
   // Saudi convention (Sunday) by default, overridable in Preferences — never
   // left to date-fns's own Monday-first default.
   const weekStartsOn = (viewer?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
   const showHijri = viewer?.show_hijri_dates ?? false;
   const locale = viewer?.language ?? "en";
 
-  let events;
-  if (view === "list") {
-    events = await listEvents({ circleId });
-  } else {
-    const rangeStart =
-      view === "month"
-        ? startOfWeek(startOfMonth(anchor), { weekStartsOn })
-        : view === "week"
-          ? startOfWeek(anchor, { weekStartsOn })
-          : anchor;
-    const rangeEnd =
-      view === "month"
-        ? endOfWeek(endOfMonth(anchor), { weekStartsOn })
-        : view === "week"
-          ? endOfWeek(anchor, { weekStartsOn })
-          : anchor;
-    events = await listEvents({
-      circleId,
-      from: new Date(rangeStart.getTime() - BOUNDARY_PAD_MS).toISOString(),
-      to: new Date(rangeEnd.getTime() + BOUNDARY_PAD_MS).toISOString(),
-    });
-  }
+  const circleIds = circles.map((c) => c.id);
 
-  const [hosts, otherCircles, inviteCandidates, ownCircleMemberCount] = canSchedule
-    ? await Promise.all([
-        listHostCandidates(circleId),
-        listOtherCirclesWithCounts(circleId),
-        listInviteCandidates(circleId),
-        getCircleMemberCount(circleId),
-      ])
-    : [[], [], [], 0];
+  const eventsPromise =
+    view === "list"
+      ? listEvents({ circleIds })
+      : (() => {
+          const rangeStart =
+            view === "month"
+              ? startOfWeek(startOfMonth(anchor), { weekStartsOn })
+              : view === "week"
+                ? startOfWeek(anchor, { weekStartsOn })
+                : anchor;
+          const rangeEnd =
+            view === "month"
+              ? endOfWeek(endOfMonth(anchor), { weekStartsOn })
+              : view === "week"
+                ? endOfWeek(anchor, { weekStartsOn })
+                : anchor;
+          return listEvents({
+            circleIds,
+            from: new Date(rangeStart.getTime() - BOUNDARY_PAD_MS).toISOString(),
+            to: new Date(rangeEnd.getTime() + BOUNDARY_PAD_MS).toISOString(),
+          });
+        })();
+
+  // Per-schedulable-circle host/invite/member data, only needed for the
+  // schedule dialog — independent of `events` above and of each other, so
+  // all of it (events, every circle's scheduling data, and the org-wide
+  // circle list) runs as one parallel batch rather than three sequential
+  // round-trip stages.
+  const schedulingPromise = canSchedule
+    ? Promise.all(
+        schedulableCircles.map(async (circle) => {
+          const [hosts, inviteCandidates, memberCount] = await Promise.all([
+            listHostCandidates(circle.id),
+            listInviteCandidates(circle.id),
+            getCircleMemberCount(circle.id),
+          ]);
+          return { circleId: circle.id, hosts, inviteCandidates, memberCount };
+        }),
+      )
+    : Promise.resolve([]);
+  const allCirclesWithCountsPromise = canSchedule ? listAllCirclesWithCounts() : Promise.resolve([]);
+
+  const [events, schedulingResults, allCirclesWithCounts] = await Promise.all([
+    eventsPromise,
+    schedulingPromise,
+    allCirclesWithCountsPromise,
+  ]);
+
+  const hostsByCircle: Record<string, HostCandidate[]> = {};
+  const inviteCandidatesByCircle: Record<string, InviteCandidate[]> = {};
+  const memberCountByCircle: Record<string, number> = {};
+  for (const row of schedulingResults) {
+    hostsByCircle[row.circleId] = row.hosts;
+    inviteCandidatesByCircle[row.circleId] = row.inviteCandidates;
+    memberCountByCircle[row.circleId] = row.memberCount;
+  }
 
   const formatFilter: EventFormat | null =
     params.format === "in_person" || params.format === "online" || params.format === "hybrid"
@@ -123,7 +154,6 @@ export default async function EventsPage({
   const hijriLabel = view === "month" && showHijri ? hijriMonthYear(anchor, locale) : null;
 
   const monthBaseParams = new URLSearchParams();
-  monthBaseParams.set("circleId", circleId);
   monthBaseParams.set("view", "month");
   monthBaseParams.set("date", format(anchor, "yyyy-MM-dd"));
   const monthBasePath = `/events?${monthBaseParams.toString()}`;
@@ -139,17 +169,15 @@ export default async function EventsPage({
         action={
           canSchedule && (
             <ScheduleEventDialog
-              circleId={circleId}
-              hosts={hosts}
-              otherCircles={otherCircles}
-              inviteCandidates={inviteCandidates}
-              ownCircleMemberCount={ownCircleMemberCount}
+              circles={schedulableCircles}
+              allCirclesWithCounts={allCirclesWithCounts}
+              hostsByCircle={hostsByCircle}
+              inviteCandidatesByCircle={inviteCandidatesByCircle}
+              memberCountByCircle={memberCountByCircle}
             />
           )
         }
-      >
-        {circles.length > 1 && <CircleSelect circles={circles} value={circleId} />}
-      </PageHeader>
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ViewSwitcher current={view} />
@@ -169,19 +197,20 @@ export default async function EventsPage({
           weekStartsOn={weekStartsOn}
           showHijri={showHijri}
           locale={locale}
+          circles={circles}
           canSchedule={canSchedule}
-          circleId={circleId}
-          hosts={hosts}
-          otherCircles={otherCircles}
-          inviteCandidates={inviteCandidates}
-          ownCircleMemberCount={ownCircleMemberCount}
+          schedulableCircles={schedulableCircles}
+          allCirclesWithCounts={allCirclesWithCounts}
+          hostsByCircle={hostsByCircle}
+          inviteCandidatesByCircle={inviteCandidatesByCircle}
+          memberCountByCircle={memberCountByCircle}
         />
       )}
       {view === "week" && (
-        <WeekView anchor={anchor} events={filteredEvents} weekStartsOn={weekStartsOn} />
+        <WeekView anchor={anchor} events={filteredEvents} weekStartsOn={weekStartsOn} circles={circles} />
       )}
-      {view === "day" && <DayView anchor={anchor} events={filteredEvents} />}
-      {view === "list" && <ListView events={filteredEvents} />}
+      {view === "day" && <DayView anchor={anchor} events={filteredEvents} circles={circles} />}
+      {view === "list" && <ListView events={filteredEvents} circles={circles} />}
     </div>
   );
 }

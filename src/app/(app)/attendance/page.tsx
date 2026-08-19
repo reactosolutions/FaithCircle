@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { listAttendanceEvents } from "@/features/attendance/queries";
 import { listViewerCircles } from "@/features/events/queries";
 import { formatEventDate, formatEventTime } from "@/features/events/format";
@@ -17,23 +18,20 @@ export default async function AttendanceIndexPage({
 }) {
   const params = await searchParams;
   const t = await getTranslations("Attendance");
-  const supabase = await createClient();
   const user = await getCachedUser();
   if (!user) {
     redirect("/sign-in");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
+  const [profile, events, circles] = await Promise.all([
+    getViewerProfile(),
+    listAttendanceEvents(),
+    listViewerCircles(),
+  ]);
 
   if (profile?.role !== "admin" && profile?.role !== "administrative") {
     notFound();
   }
-
-  const [events, circles] = await Promise.all([listAttendanceEvents(), listViewerCircles()]);
   const circlesById = new Map(circles.map((circle) => [circle.id, circle]));
 
   const ledEvents =

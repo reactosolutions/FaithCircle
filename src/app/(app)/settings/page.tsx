@@ -1,18 +1,14 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { Icon } from "@/components/ui/icon";
 import { settingsSectionsForRole } from "@/features/settings/sections";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/app-shell/page-header";
 
 export default async function SettingsIndexPage() {
-  const supabase = await createClient();
-  const user = await getCachedUser();
   const t = await getTranslations("Settings");
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
   const role = profile?.role ?? "student";
   const sections = settingsSectionsForRole(role);
 
@@ -34,7 +30,12 @@ export default async function SettingsIndexPage() {
                   <span className="text-xs text-muted-foreground">{t(section.descriptionKey)}</span>
                 </span>
               </span>
-              <Icon name="chevron_right" size={20} className="shrink-0 text-muted-foreground" />
+              <Icon
+                name="chevron_right"
+                size={20}
+                className="shrink-0 text-muted-foreground"
+                data-icon="inline-end"
+              />
             </Link>
           ))}
         </CardContent>

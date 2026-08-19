@@ -1,11 +1,12 @@
 import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 
 export async function listLedCircles() {
   const supabase = await createClient();
   const user = await getCachedUser();
   if (!user) return [];
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const profile = await getViewerProfile();
 
   let query = supabase.from("circles").select("id, name").order("name");
   if (profile?.role !== "admin") {

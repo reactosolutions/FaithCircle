@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { getAttendanceSheet } from "@/features/attendance/queries";
 import { AttendanceSheet } from "@/features/attendance/components/attendance-sheet";
 import { formatEventDate, formatEventTime } from "@/features/events/format";
@@ -19,13 +20,9 @@ export default async function AttendanceSheetPage({
     redirect("/sign-in");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const result = await getAttendanceSheet(eventId);
+  // Independent of each other — one parallel round trip instead of two
+  // sequential ones.
+  const [profile, result] = await Promise.all([getViewerProfile(), getAttendanceSheet(eventId)]);
   if (!result) {
     notFound();
   }

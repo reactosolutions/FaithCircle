@@ -16,13 +16,23 @@ export function EditMemberDialog({
   profileId,
   fullName,
   phone,
+  mobileOpen: mobileOpenProp,
+  onMobileOpenChange: onMobileOpenChangeProp,
 }: {
   profileId: string;
   fullName: string | null;
   phone: string | null;
+  // Externally controlled by a condensed mobile row's "more actions" menu —
+  // when provided, the Drawer's own trigger button is hidden and this
+  // component just reflects the caller's state (see ResponsiveDialog's
+  // hideMobileTrigger).
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("Members");
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = mobileOpenProp ?? internalMobileOpen;
+  const onMobileOpenChange = onMobileOpenChangeProp ?? setInternalMobileOpen;
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
     updateMemberProfile,
@@ -30,20 +40,21 @@ export function EditMemberDialog({
   );
   useActionToast(state, t("memberUpdatedToast"));
   useOnActionSuccess(state, () => {
-    setMobileOpen(false);
+    onMobileOpenChange(false);
     setDesktopOpen(false);
   });
 
   return (
     <ResponsiveDialog
       mobileOpen={mobileOpen}
-      onMobileOpenChange={setMobileOpen}
+      onMobileOpenChange={onMobileOpenChange}
       desktopOpen={desktopOpen}
       onDesktopOpenChange={setDesktopOpen}
       triggerLabel={t("editTrigger")}
       triggerVariant="outline"
       triggerIcon="edit"
       title={t("editTitle")}
+      hideMobileTrigger={mobileOpenProp !== undefined}
     >
       <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="profileId" value={profileId} />

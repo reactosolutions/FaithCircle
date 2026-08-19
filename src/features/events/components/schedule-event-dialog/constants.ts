@@ -38,6 +38,11 @@ export function useAudienceOptions(): { value: EventAudience; label: string }[] 
   ];
 }
 
+export interface SchedulableCircle {
+  id: string;
+  name: string;
+}
+
 export interface HostCandidate {
   id: string;
   full_name: string | null;

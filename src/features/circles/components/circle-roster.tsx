@@ -87,7 +87,15 @@ function AddMembersDialog({
   );
 }
 
-function MemberRow({ circleId, member }: { circleId: string; member: Member }) {
+function MemberRow({
+  circleId,
+  member,
+  canManage,
+}: {
+  circleId: string;
+  member: Member;
+  canManage: boolean;
+}) {
   const t = useTranslations("Circles");
   const [pending, startTransition] = useTransition();
 
@@ -99,21 +107,23 @@ function MemberRow({ circleId, member }: { circleId: string; member: Member }) {
         </p>
         <p className="truncate text-xs text-muted-foreground">{member.email ?? "—"}</p>
       </Link>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={pending}
-        aria-label={t("removeAriaLabel", { name: member.full_name ?? t("unnamed") })}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await removeCircleMember({ circleId, profileId: member.id });
-            notifyActionResult(result, t("removedToast"));
-          })
-        }
-      >
-        <Icon name="person_remove" size={18} />
-      </Button>
+      {canManage && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={pending}
+          aria-label={t("removeAriaLabel", { name: member.full_name ?? t("unnamed") })}
+          onClick={() =>
+            startTransition(async () => {
+              const result = await removeCircleMember({ circleId, profileId: member.id });
+              notifyActionResult(result, t("removedToast"));
+            })
+          }
+        >
+          <Icon name="person_remove" size={18} />
+        </Button>
+      )}
     </div>
   );
 }
@@ -122,10 +132,15 @@ export function CircleRoster({
   circleId,
   members,
   addCandidates,
+  canManage = true,
 }: {
   circleId: string;
   members: Member[];
   addCandidates: { id: string; full_name: string | null; email: string | null }[];
+  // Read-only for a plain circle member (members.invite has no scope for
+  // student) — the add/remove controls below only render for admin or the
+  // circle's own leader, who both hold members.invite's 'circle' scope.
+  canManage?: boolean;
 }) {
   const t = useTranslations("Circles");
   const [search, setSearch] = useState("");
@@ -149,7 +164,7 @@ export function CircleRoster({
           onChange={(event) => setSearch(event.target.value)}
           className="max-w-xs"
         />
-        <AddMembersDialog circleId={circleId} candidates={addCandidates} />
+        {canManage && <AddMembersDialog circleId={circleId} candidates={addCandidates} />}
       </div>
 
       {filtered.length === 0 ? (
@@ -159,7 +174,7 @@ export function CircleRoster({
       ) : (
         <div className="flex flex-col divide-y divide-border rounded-lg border border-border px-3">
           {filtered.map((member) => (
-            <MemberRow key={member.id} circleId={circleId} member={member} />
+            <MemberRow key={member.id} circleId={circleId} member={member} canManage={canManage} />
           ))}
         </div>
       )}

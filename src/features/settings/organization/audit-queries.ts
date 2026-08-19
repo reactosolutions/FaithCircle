@@ -9,9 +9,17 @@ export interface AuditLogFilters {
   recordId?: string;
 }
 
-export async function listAuditLog(filters: AuditLogFilters = {}) {
+export const AUDIT_LOG_PAGE_SIZE = 10;
+
+export async function listAuditLog(filters: AuditLogFilters & { page?: number } = {}) {
   const supabase = await createClient();
-  let query = supabase.from("audit_log").select("*").order("occurred_at", { ascending: false }).limit(200);
+  const page = Math.max(1, filters.page ?? 1);
+  const pageSize = AUDIT_LOG_PAGE_SIZE;
+
+  let query = supabase
+    .from("audit_log")
+    .select("*", { count: "exact" })
+    .order("occurred_at", { ascending: false });
 
   if (filters.from) query = query.gte("occurred_at", filters.from);
   if (filters.to) query = query.lte("occurred_at", filters.to);
@@ -20,9 +28,9 @@ export async function listAuditLog(filters: AuditLogFilters = {}) {
   if (filters.action) query = query.eq("action", filters.action);
   if (filters.recordId) query = query.eq("record_id", filters.recordId);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query.range((page - 1) * pageSize, page * pageSize - 1);
   if (error) throw error;
-  return data;
+  return { rows: data ?? [], total: count ?? 0, page, pageSize };
 }
 
 export async function listAuditLogForRecord(tableName: string, recordId: string) {

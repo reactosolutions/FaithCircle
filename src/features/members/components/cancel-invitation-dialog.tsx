@@ -14,19 +14,25 @@ import { cancelInvitation } from "../actions";
 export function CancelInvitationDialog({
   profileId,
   memberName,
+  mobileOpen: mobileOpenProp,
+  onMobileOpenChange: onMobileOpenChangeProp,
 }: {
   profileId: string;
   memberName: string;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("Members");
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = mobileOpenProp ?? internalMobileOpen;
+  const onMobileOpenChange = onMobileOpenChangeProp ?? setInternalMobileOpen;
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   return (
     <ResponsiveDialog
       mobileOpen={mobileOpen}
-      onMobileOpenChange={setMobileOpen}
+      onMobileOpenChange={onMobileOpenChange}
       desktopOpen={desktopOpen}
       onDesktopOpenChange={setDesktopOpen}
       triggerLabel={t("cancelInvitationTrigger")}
@@ -34,6 +40,7 @@ export function CancelInvitationDialog({
       triggerIcon="person_remove"
       title={t("cancelInvitationTitle")}
       description={t("cancelInvitationDescription", { name: memberName })}
+      hideMobileTrigger={mobileOpenProp !== undefined}
     >
       <Button
         type="button"
@@ -45,7 +52,7 @@ export function CancelInvitationDialog({
             const result = await cancelInvitation({ profileId });
             notifyActionResult(result, result.ok ? t("invitationCancelledToast") : undefined);
             if (result.ok) {
-              setMobileOpen(false);
+              onMobileOpenChange(false);
               setDesktopOpen(false);
             }
           })

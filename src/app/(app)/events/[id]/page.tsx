@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getEvent } from "@/features/events/queries";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import {
   canJoinMeeting,
   formatEventDate,
@@ -32,19 +33,18 @@ export default async function EventDetailPage({
     teams: t("meetProviderTeams"),
     other: t("meetProviderOther"),
   };
-  const result = await getEvent(id);
+  // Independent reads (the event itself vs. the viewer's own profile) — run
+  // them in parallel rather than paying two sequential Postgres round trips.
+  // getViewerProfile() is React cache()-deduped, so this also means the
+  // layout's earlier call to it is reused for free instead of re-fetched.
+  const [result, profile] = await Promise.all([getEvent(id), getViewerProfile()]);
 
   if (!result) {
     notFound();
   }
 
   const { event, circle, host, rsvps, invitedCircles, invitees, attendance } = result;
-
-  const supabase = await createClient();
   const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role, show_hijri_dates, language").eq("id", user.id).single()
-    : { data: null };
 
   const ownRsvp = rsvps.find((r) => r.profile_id === user?.id);
   const ownAttendance = attendance.find((a) => a.profile_id === user?.id);

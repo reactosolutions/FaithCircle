@@ -1,16 +1,12 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { Icon } from "@/components/ui/icon";
 import { settingsSectionsForRole } from "@/features/settings/sections";
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const user = await getCachedUser();
   const t = await getTranslations("Settings");
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
   const role = profile?.role ?? "student";
   const sections = settingsSectionsForRole(role);
 

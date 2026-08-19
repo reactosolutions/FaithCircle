@@ -1,17 +1,27 @@
 import { createClient } from "@/lib/supabase/server";
 
-// One row per circle with its advisors (circle_leaders, not just the single
-// circles.leader_id — an administrative may lead more than one circle, and a
-// circle may have more than one advisor) and current member count.
-export async function listCirclesWithDetails() {
-  const supabase = await createClient();
+export const CIRCLES_PAGE_SIZE = 10;
 
-  const { data: circles, error } = await supabase
+// One page of circles with their advisors (circle_leaders, not just the
+// single circles.leader_id — an administrative may lead more than one
+// circle, and a circle may have more than one advisor) and current member
+// count.
+export async function listCirclesWithDetails({ page = 1, pageSize = CIRCLES_PAGE_SIZE } = {}) {
+  const supabase = await createClient();
+  const safePage = Math.max(1, page);
+
+  const {
+    data: circles,
+    error,
+    count,
+  } = await supabase
     .from("circles")
-    .select("id, name, invite_code, join_policy, created_at")
-    .order("created_at", { ascending: false });
+    .select("id, name, invite_code, join_policy, created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range((safePage - 1) * pageSize, safePage * pageSize - 1);
   if (error) throw error;
-  if (!circles || circles.length === 0) return [];
+  const total = count ?? 0;
+  if (!circles || circles.length === 0) return { circles: [], total, page: safePage, pageSize };
 
   const circleIds = circles.map((c) => c.id);
 
@@ -39,11 +49,16 @@ export async function listCirclesWithDetails() {
     memberCountByCircle.set(row.circle_id, (memberCountByCircle.get(row.circle_id) ?? 0) + 1);
   }
 
-  return circles.map((circle) => ({
-    ...circle,
-    advisorNames: advisorsByCircle.get(circle.id) ?? [],
-    memberCount: memberCountByCircle.get(circle.id) ?? 0,
-  }));
+  return {
+    circles: circles.map((circle) => ({
+      ...circle,
+      advisorNames: advisorsByCircle.get(circle.id) ?? [],
+      memberCount: memberCountByCircle.get(circle.id) ?? 0,
+    })),
+    total,
+    page: safePage,
+    pageSize,
+  };
 }
 
 // Candidates for the "advisors" picker on the create-circle form — every

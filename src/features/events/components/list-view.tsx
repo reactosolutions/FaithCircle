@@ -10,8 +10,16 @@ import type { Database } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
-export function ListView({ events }: { events: EventRow[] }) {
+export function ListView({
+  events,
+  circles,
+}: {
+  events: EventRow[];
+  circles: { id: string; name: string }[];
+}) {
   const t = useTranslations("Events");
+  const circleNameById = new Map(circles.map((c) => [c.id, c.name]));
+  const showCircleLabel = circles.length > 1;
   if (events.length === 0) {
     return <EmptyState icon="event_busy" title={t("noMeetingsScheduled")} />;
   }
@@ -42,7 +50,15 @@ export function ListView({ events }: { events: EventRow[] }) {
                 >
                   <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
                     <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
-                    <span className="truncate">{event.title}</span>
+                    <span className="truncate">
+                      {event.title}
+                      {showCircleLabel && (
+                        <span className="font-normal text-muted-foreground">
+                          {" · "}
+                          {circleNameById.get(event.circle_id) ?? ""}
+                        </span>
+                      )}
+                    </span>
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {formatEventDate(event.starts_at)} · {formatEventTime(event.starts_at)}

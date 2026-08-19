@@ -26,6 +26,9 @@ export function AdminDashboardSection({
           label={t("statPendingJoinRequests")}
           value={stats.pendingJoinRequestCount + stats.memberCounts.pending}
           href="/settings/organization"
+          // 5 tiles in a 2-column mobile grid orphans the last one alone on
+          // its own half-empty row — span it full width there instead.
+          className="col-span-2 sm:col-span-1"
         />
       </div>
       <StatTile

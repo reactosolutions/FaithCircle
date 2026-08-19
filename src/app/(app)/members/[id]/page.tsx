@@ -20,18 +20,22 @@ export default async function MemberDetailPage({
 }) {
   const { id } = await params;
   const t = await getTranslations("Members");
-  const member = await getMember(id);
 
-  if (!member) {
-    notFound();
-  }
-
-  const [history, submissions, circles, viewer] = await Promise.all([
+  // None of these depend on each other's result (they all key off `id` or
+  // the viewer, not off `member`'s content) — one parallel round trip
+  // instead of fetching `member` first and waiting on it before starting
+  // the rest.
+  const [member, history, submissions, circles, viewer] = await Promise.all([
+    getMember(id),
     getMemberAttendanceHistory(id),
     getMemberSubmissionHistory(id),
     listCirclesForProfile(id),
     getViewerProfile(),
   ]);
+
+  if (!member) {
+    notFound();
+  }
 
   const isAdmin = viewer?.role === "admin";
   const assignCandidates = isAdmin

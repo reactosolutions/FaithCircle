@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { getCircleDetail, listAdvisorCandidates, listStudentCandidates } from "@/features/circles/queries";
 import { AdvisorsEditor } from "@/features/circles/components/advisors-editor";
 import { CircleRoster } from "@/features/circles/components/circle-roster";
@@ -13,23 +13,32 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
   const { id } = await params;
   const t = await getTranslations("Circles");
 
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
-  if (profile?.role !== "admin") {
-    notFound();
-  }
-
-  const [detail, advisorCandidates, studentCandidates] = await Promise.all([
-    getCircleDetail(id),
-    listAdvisorCandidates(),
-    listStudentCandidates(),
-  ]);
+  const [profile, detail] = await Promise.all([getViewerProfile(), getCircleDetail(id)]);
   if (!detail) {
     notFound();
   }
+
+  const isAdmin = profile?.role === "admin";
+  const isLeaderOfThisCircle = detail.advisors.some((a) => a.id === profile?.id);
+  const isMemberOfThisCircle = detail.members.some((m) => m.id === profile?.id);
+
+  // Same access level members.view already grants: admin sees every
+  // circle, everyone else only circles they lead or belong to (matches
+  // this circle's own roster/RLS, not a separate rule invented here).
+  if (!isAdmin && !isLeaderOfThisCircle && !isMemberOfThisCircle) {
+    notFound();
+  }
+
+  // A leader can add/remove members of a circle they lead (members.invite's
+  // 'circle' scope) — a plain member can only view. Assigning WHO leads a
+  // circle (AdvisorsEditor) is a role-management action, admin-only
+  // (roles.assign_administrative), regardless of leadership here.
+  const canManageRoster = isAdmin || isLeaderOfThisCircle;
+
+  const [advisorCandidates, studentCandidates] = await Promise.all([
+    isAdmin ? listAdvisorCandidates() : Promise.resolve([]),
+    canManageRoster ? listStudentCandidates() : Promise.resolve([]),
+  ]);
 
   const memberIds = new Set(detail.members.map((m) => m.id));
   const addCandidates = studentCandidates.filter((s) => !memberIds.has(s.id));
@@ -45,17 +54,21 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           </>
         }
         action={
-          <Button
-            variant="outline"
-            className="rounded-full"
-            render={<Link href={`/settings/circle?circleId=${detail.circle.id}`} />}
-          >
-            {t("meetingSettingsButton")}
-          </Button>
+          canManageRoster && (
+            <Button
+              variant="outline"
+              className="rounded-full"
+              render={<Link href={`/settings/circle?circleId=${detail.circle.id}`} />}
+            >
+              {t("meetingSettingsButton")}
+            </Button>
+          )
         }
       />
 
-      {detail.circle.invite_code && (
+      {/* The join code lets anyone in (skipping approval, on an open_invite
+          circle) — only shown to people who could already act on it. */}
+      {canManageRoster && detail.circle.invite_code && (
         <p className="font-mono text-xs text-muted-foreground">
           {detail.circle.join_policy === "open_invite"
             ? t("joinCodeSkipsApproval", { code: detail.circle.invite_code })
@@ -68,11 +81,21 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           <CardTitle className="text-base">{t("advisorsTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <AdvisorsEditor
-            circleId={detail.circle.id}
-            currentAdvisors={detail.advisors}
-            advisorCandidates={advisorCandidates}
-          />
+          {isAdmin ? (
+            <AdvisorsEditor
+              circleId={detail.circle.id}
+              currentAdvisors={detail.advisors}
+              advisorCandidates={advisorCandidates}
+            />
+          ) : detail.advisors.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("noAdvisorsYet")}</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5 text-sm text-foreground">
+              {detail.advisors.map((advisor) => (
+                <li key={advisor.id}>{advisor.full_name ?? t("unnamed")}</li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
 
@@ -81,7 +104,12 @@ export default async function CircleDetailPage({ params }: { params: Promise<{ i
           <CardTitle className="text-base">{t("membersTitle")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <CircleRoster circleId={detail.circle.id} members={detail.members} addCandidates={addCandidates} />
+          <CircleRoster
+            circleId={detail.circle.id}
+            members={detail.members}
+            addCandidates={addCandidates}
+            canManage={canManageRoster}
+          />
         </CardContent>
       </Card>
     </div>

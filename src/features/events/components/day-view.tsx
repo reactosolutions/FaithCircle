@@ -9,8 +9,18 @@ import type { Database } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
-export function DayView({ anchor, events }: { anchor: Date; events: EventRow[] }) {
+export function DayView({
+  anchor,
+  events,
+  circles,
+}: {
+  anchor: Date;
+  events: EventRow[];
+  circles: { id: string; name: string }[];
+}) {
   const t = useTranslations("Events");
+  const circleNameById = new Map(circles.map((c) => [c.id, c.name]));
+  const showCircleLabel = circles.length > 1;
   const dayKey = format(anchor, "yyyy-MM-dd");
   const dayEvents = events
     .filter((event) => eventDayKey(event.starts_at) === dayKey)
@@ -35,7 +45,15 @@ export function DayView({ anchor, events }: { anchor: Date; events: EventRow[] }
             >
               <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
                 <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
-                <span className="truncate">{event.title}</span>
+                <span className="truncate">
+                  {event.title}
+                  {showCircleLabel && (
+                    <span className="font-normal text-muted-foreground">
+                      {" · "}
+                      {circleNameById.get(event.circle_id) ?? ""}
+                    </span>
+                  )}
+                </span>
               </span>
               <span className="shrink-0 text-muted-foreground">{formatEventTime(event.starts_at)}</span>
             </Link>

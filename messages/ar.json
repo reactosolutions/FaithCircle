@@ -89,7 +89,8 @@
     "moreUpcomingMeetings": "المزيد من الاجتماعات القادمة",
     "homeworkDueTitle": "الواجبات المستحقة",
     "pendingLabel": "قيد الانتظار",
-    "lateLabel": "متأخر"
+    "lateLabel": "متأخر",
+    "circleDetailsToggle": "تفاصيل الحلقة"
   },
   "Members": {
     "title": "الأعضاء",
@@ -99,6 +100,7 @@
     "statusInactive": "غير نشط",
     "statusPending": "بانتظار الموافقة",
     "selectAllAriaLabel": "تحديد كل الأعضاء",
+    "moreActionsLabel": "المزيد من الإجراءات",
     "selectedCount": "{count, plural, one {# محدد} two {محددان} few {# محددين} many {# محددًا} other {# محدد}}",
     "bulkApproveCirclePlaceholder": "إضافة إلى حلقة (اختياري)",
     "bulkApproveButton": "قبول",
@@ -201,6 +203,7 @@
     "advisorsTitle": "المرشدون",
     "membersTitle": "الأعضاء",
     "emptyCirclesTitle": "لا توجد حلقات بعد. أنشئ الأولى أعلاه.",
+    "notInAnyCircleYet": "لست عضوًا في أي حلقة بعد.",
     "noAdvisorAssigned": "لم يُعيَّن مرشد",
     "advisorsSaving": "جارٍ الحفظ…",
     "advisorsSaveButton": "حفظ المرشدين",
@@ -230,6 +233,7 @@
     "noCircleYet": "لست عضوًا في حلقة بعد — تحقق مرة أخرى بعد الانضمام إلى إحداها.",
     "weekOf": "أسبوع {date}",
     "selectCirclePlaceholder": "اختر حلقة",
+    "circleLabel": "الحلقة",
     "viewMonth": "شهر",
     "viewWeek": "أسبوع",
     "viewDay": "يوم",
@@ -703,7 +707,13 @@
   "Common": {
     "errorTitle": "حدث خطأ ما.",
     "errorSubtitle": "تحقق من اتصالك وحاول مرة أخرى.",
-    "tryAgainButton": "حاول مرة أخرى"
+    "tryAgainButton": "حاول مرة أخرى",
+    "paginationLabel": "التنقل بين الصفحات",
+    "previousLabel": "السابق",
+    "nextLabel": "التالي",
+    "pageLabel": "صفحة {page} من {pageCount}",
+    "listViewLabel": "عرض القائمة",
+    "cardViewLabel": "عرض البطاقات"
   },
   "Signup": {
     "title": "أنشئ حسابك",

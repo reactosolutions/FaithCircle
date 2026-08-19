@@ -11,15 +11,27 @@ import { TempPasswordPanel } from "./temp-password-panel";
 // Admin-only (see resetMemberPassword's own comment) — the no-email
 // equivalent of "forgot password" for someone locked out: generates a new
 // temp password immediately and shows it once, same as InviteDialog.
-export function ResetPasswordDialog({ profileId, email }: { profileId: string; email: string }) {
+export function ResetPasswordDialog({
+  profileId,
+  email,
+  mobileOpen: mobileOpenProp,
+  onMobileOpenChange: onMobileOpenChangeProp,
+}: {
+  profileId: string;
+  email: string;
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
+}) {
   const t = useTranslations("Members");
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = mobileOpenProp ?? internalMobileOpen;
+  const onMobileOpenChange = onMobileOpenChangeProp ?? setInternalMobileOpen;
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
   function close() {
-    setMobileOpen(false);
+    onMobileOpenChange(false);
     setDesktopOpen(false);
     // Delayed so the confirm view doesn't flash back in before the dialog
     // has fully closed.
@@ -29,7 +41,7 @@ export function ResetPasswordDialog({ profileId, email }: { profileId: string; e
   return (
     <ResponsiveDialog
       mobileOpen={mobileOpen}
-      onMobileOpenChange={setMobileOpen}
+      onMobileOpenChange={onMobileOpenChange}
       desktopOpen={desktopOpen}
       onDesktopOpenChange={setDesktopOpen}
       triggerLabel={t("resetPasswordTrigger")}
@@ -37,6 +49,7 @@ export function ResetPasswordDialog({ profileId, email }: { profileId: string; e
       triggerIcon="lock_reset"
       title={t("resetPasswordTitle")}
       description={tempPassword ? undefined : t("resetPasswordDescription")}
+      hideMobileTrigger={mobileOpenProp !== undefined}
     >
       {tempPassword ? (
         <TempPasswordPanel email={email} tempPassword={tempPassword} onDone={close} />

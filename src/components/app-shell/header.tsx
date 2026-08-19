@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { getLocale, getTranslations } from "next-intl/server";
-import { NotificationBell } from "./notification-bell";
+import { NotificationBell, NotificationBellFallback } from "./notification-bell";
 import { UserMenu } from "./user-menu";
 import { LanguageSwitcher } from "@/features/i18n/components/language-switcher";
 import type { Locale } from "@/i18n/request";
@@ -17,7 +18,9 @@ export async function AppHeader({ name, role }: { name: string; role: UserRole }
       <UserMenu name={name} roleLabel={ROLE_LABEL[role]} />
       <div className="flex items-center gap-1">
         <LanguageSwitcher locale={locale as Locale} />
-        <NotificationBell />
+        <Suspense fallback={<NotificationBellFallback label={t("notifications")} />}>
+          <NotificationBell />
+        </Suspense>
       </div>
     </header>
   );

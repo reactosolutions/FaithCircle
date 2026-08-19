@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import {
   getOrgSettings,
   listPendingJoinRequests,
@@ -16,11 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { PageHeader } from "@/components/app-shell/page-header";
 
 export default async function OrganizationSettingsPage() {
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
 
   if (profile?.role !== "admin") {
     notFound();

@@ -23,26 +23,35 @@ import {
   type HostCandidate,
   type InviteCandidate,
   type OtherCircle,
+  type SchedulableCircle,
 } from "./constants";
 import type { ActionResult } from "@/lib/action-result";
 import type { EventAudience, EventFormat, EventRecurrence } from "@/lib/database.types";
 
 export function ScheduleEventDialog({
-  circleId,
-  hosts,
-  otherCircles,
-  inviteCandidates,
-  ownCircleMemberCount,
+  circles,
+  allCirclesWithCounts,
+  hostsByCircle,
+  inviteCandidatesByCircle,
+  memberCountByCircle,
   defaultStartsAt,
   triggerIcon,
   triggerVariant,
   triggerClassName,
 }: {
-  circleId: string;
-  hosts: HostCandidate[];
-  otherCircles: OtherCircle[];
-  inviteCandidates: InviteCandidate[];
-  ownCircleMemberCount: number;
+  // The owning-circle dropdown's options — circles the viewer can actually
+  // schedule into (admin: every circle; administrative: circles they
+  // lead). Always at least one, since callers only render this component
+  // when canSchedule is true.
+  circles: SchedulableCircle[];
+  // Every circle in the org (not just schedulable ones) with member
+  // counts, for the "invite another circle" audience picker below — the
+  // one currently selected as owner is filtered out client-side rather
+  // than re-fetched each time the dropdown changes.
+  allCirclesWithCounts: OtherCircle[];
+  hostsByCircle: Record<string, HostCandidate[]>;
+  inviteCandidatesByCircle: Record<string, InviteCandidate[]>;
+  memberCountByCircle: Record<string, number>;
   // "YYYY-MM-DDTHH:mm" — pre-fills the date/time field when opened from a
   // specific day (e.g. tapping a calendar day box) instead of the generic
   // header trigger.
@@ -57,6 +66,7 @@ export function ScheduleEventDialog({
   const RECURRENCE_LABEL = useRecurrenceLabel();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(false);
+  const [circleId, setCircleId] = useState(circles[0]?.id ?? "");
   const [format, setFormat] = useState<EventFormat>("in_person");
   const [hostId, setHostId] = useState("");
   const [address, setAddress] = useState("");
@@ -74,6 +84,11 @@ export function ScheduleEventDialog({
     setMobileOpen(false);
     setDesktopOpen(false);
   });
+
+  const hosts = hostsByCircle[circleId] ?? [];
+  const inviteCandidates = inviteCandidatesByCircle[circleId] ?? [];
+  const ownCircleMemberCount = memberCountByCircle[circleId] ?? 0;
+  const otherCircles = allCirclesWithCounts.filter((c) => c.id !== circleId);
 
   const invitedCount =
     ownCircleMemberCount +
@@ -95,7 +110,37 @@ export function ScheduleEventDialog({
       dialogContentClassName="sm:max-w-md"
     >
       <form action={formAction} className="flex flex-col gap-4 md:max-h-[70vh] md:overflow-y-auto md:pe-1">
-        <input type="hidden" name="circleId" value={circleId} />
+        {circles.length > 1 ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="circleId">{t("circleLabel")}</Label>
+            <input type="hidden" name="circleId" value={circleId} />
+            <Select
+              value={circleId}
+              onValueChange={(next) => {
+                if (!next) return;
+                setCircleId(next);
+                // Host/address are scoped to whichever circle owns the
+                // event — a stale selection from the previous circle
+                // wouldn't even be in the new one's host list.
+                setHostId("");
+                setAddress("");
+              }}
+            >
+              <SelectTrigger id="circleId" className="w-full">
+                <SelectValue>{circles.find((c) => c.id === circleId)?.name}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {circles.map((circle) => (
+                  <SelectItem key={circle.id} value={circle.id}>
+                    {circle.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <input type="hidden" name="circleId" value={circleId} />
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="title">{t("titleLabel")}</Label>

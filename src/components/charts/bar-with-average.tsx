@@ -2,6 +2,8 @@
 
 import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { ChartEmptyState } from "./chart-empty-state";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { MAX_MOBILE_X_LABELS, xAxisTickInterval } from "./x-axis-tick-interval";
 
 interface DataPoint {
   label: string;
@@ -23,6 +25,7 @@ export function BarWithAverage({
   showAverage?: boolean;
   emptyMessage?: string;
 }) {
+  const isMobile = useIsMobile();
   if (data.length === 0) {
     return <ChartEmptyState icon="bar_chart" message={emptyMessage} />;
   }
@@ -38,7 +41,7 @@ export function BarWithAverage({
           tickLine={false}
           axisLine={false}
           tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
-          interval={0}
+          interval={isMobile ? xAxisTickInterval(data.length, MAX_MOBILE_X_LABELS) : 0}
         />
         <Tooltip
           cursor={{ fill: "var(--color-muted)" }}

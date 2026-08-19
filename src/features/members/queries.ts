@@ -10,7 +10,7 @@ export interface MemberFilters {
   pageSize?: number;
 }
 
-export const MEMBERS_PAGE_SIZE = 20;
+export const MEMBERS_PAGE_SIZE = 10;
 
 // PostgREST's `.or()` filter treats "," and "()" as syntax, so a search
 // term containing them would otherwise break the query string. Wrapping

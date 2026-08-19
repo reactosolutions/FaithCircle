@@ -40,17 +40,23 @@ export function RoleChangeDialog({
   currentRole,
   circles,
   administrativeCandidates,
+  mobileOpen: mobileOpenProp,
+  onMobileOpenChange: onMobileOpenChangeProp,
 }: {
   profileId: string;
   memberName: string;
   currentRole: UserRole;
   circles: { id: string; name: string }[];
   administrativeCandidates: { id: string; full_name: string | null }[];
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }) {
   const t = useTranslations("RoleChange");
   const tMembers = useTranslations("Members");
   const ROLE_LABEL = useRoleLabel();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [internalMobileOpen, setInternalMobileOpen] = useState(false);
+  const mobileOpen = mobileOpenProp ?? internalMobileOpen;
+  const onMobileOpenChange = onMobileOpenChangeProp ?? setInternalMobileOpen;
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [role, setRole] = useState<UserRole>(currentRole);
   const [circleId, setCircleId] = useState("");
@@ -62,7 +68,7 @@ export function RoleChangeDialog({
   );
   useActionToast(state, t("successToast"));
   useOnActionSuccess(state, () => {
-    setMobileOpen(false);
+    onMobileOpenChange(false);
     setDesktopOpen(false);
   });
 
@@ -73,7 +79,7 @@ export function RoleChangeDialog({
   return (
     <ResponsiveDialog
       mobileOpen={mobileOpen}
-      onMobileOpenChange={setMobileOpen}
+      onMobileOpenChange={onMobileOpenChange}
       desktopOpen={desktopOpen}
       onDesktopOpenChange={setDesktopOpen}
       triggerLabel={t("trigger")}
@@ -81,6 +87,7 @@ export function RoleChangeDialog({
       triggerIcon="swap_horiz"
       title={t("title", { name: memberName })}
       dialogContentClassName="sm:max-w-md"
+      hideMobileTrigger={mobileOpenProp !== undefined}
     >
       <form action={formAction} className="flex flex-col gap-4">
         <input type="hidden" name="profileId" value={profileId} />

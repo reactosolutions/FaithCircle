@@ -2,6 +2,8 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartEmptyState } from "./chart-empty-state";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { MAX_MOBILE_X_LABELS, xAxisTickInterval } from "./x-axis-tick-interval";
 
 interface Series {
   key: string;
@@ -16,6 +18,7 @@ export function StackedAreaChart({
   data: Record<string, number | string>[];
   series: Series[];
 }) {
+  const isMobile = useIsMobile();
   if (data.length === 0) {
     return <ChartEmptyState icon="area_chart" message="Not enough history yet." />;
   }
@@ -29,6 +32,7 @@ export function StackedAreaChart({
             dataKey="label"
             tickLine={false}
             axisLine={false}
+            interval={isMobile ? xAxisTickInterval(data.length, MAX_MOBILE_X_LABELS) : 0}
             tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
           />
           <YAxis

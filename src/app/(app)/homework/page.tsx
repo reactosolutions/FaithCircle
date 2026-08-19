@@ -10,7 +10,7 @@ import { formatEventDate } from "@/features/events/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/app-shell/page-header";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import type { SubmissionStatus } from "@/lib/database.types";
 
 type Tab = "todo" | "submitted" | "reviewed" | "all";
@@ -33,11 +33,7 @@ export default async function HomeworkPage({
       ? params.tab
       : "todo";
 
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
   const canCreate = profile?.role === "admin" || profile?.role === "administrative";
 
   const [assignments, viewerCircles] = await Promise.all([

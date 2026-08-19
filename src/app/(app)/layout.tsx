@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import { cn } from "@/lib/utils";
 import { getPermissionMapForRole } from "@/lib/permissions";
 import { AppSidebar } from "@/components/app-shell/sidebar";
@@ -9,18 +10,16 @@ import { PermissionsProvider } from "@/components/app-shell/permissions-context"
 import { PendingApprovalCard } from "@/components/app-shell/pending-approval-card";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
   const user = await getCachedUser();
 
   if (!user) {
     redirect("/sign-in");
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email, role, status, language, theme, profile_completed_at, must_change_password")
-    .eq("id", user.id)
-    .single();
+  // cache()-deduped — the root layout above this one already called this
+  // exact function for this exact row (to resolve the theme class), so this
+  // is a free memo hit, not a second round trip.
+  const profile = await getViewerProfile();
 
   // A profile reaches 'invited' via an admin invite, or 'pending' via a
   // self-service /signup — both need the same phone/hosting-availability

@@ -13,12 +13,19 @@ export function WeekView({
   anchor,
   events,
   weekStartsOn = 0,
+  circles,
 }: {
   anchor: Date;
   events: EventRow[];
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  // Every circle the viewer belongs to — labels each event with its owning
+  // circle now that the calendar combines all of them; omitted when there's
+  // only one (nothing to distinguish).
+  circles: { id: string; name: string }[];
 }) {
   const t = useTranslations("Events");
+  const circleNameById = new Map(circles.map((c) => [c.id, c.name]));
+  const showCircleLabel = circles.length > 1;
   const days = eachDayOfInterval({
     start: startOfWeek(anchor, { weekStartsOn }),
     end: endOfWeek(anchor, { weekStartsOn }),
@@ -62,7 +69,15 @@ export function WeekView({
                     className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary"
                   >
                     <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
-                    {formatEventTime(event.starts_at)} — {event.title}
+                    <span className="truncate">
+                      {formatEventTime(event.starts_at)} — {event.title}
+                      {showCircleLabel && (
+                        <span className="font-normal text-muted-foreground">
+                          {" · "}
+                          {circleNameById.get(event.circle_id) ?? ""}
+                        </span>
+                      )}
+                    </span>
                   </Link>
                 );
               })}

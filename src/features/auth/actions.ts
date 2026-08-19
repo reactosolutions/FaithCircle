@@ -47,17 +47,12 @@ export async function signInWithPassword(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    // An admin-invited account never gets a password set during onboarding
-    // — accepting the invite email signs them in directly, and
-    // completeProfile() only asks for phone/hosting info, never a
-    // password. So a wrong-password error here is genuinely ambiguous
-    // between "mistyped it" and "never set one" — the hint steers them to
-    // the OTP flow (a few lines below this form) without revealing which
-    // case it actually was, since that itself is account-existence info.
-    return {
-      ok: false,
-      error: "Incorrect email or password. Invited or never set a password? Use \"Sign in with a code\" below instead.",
-    };
+    // Every account now gets a real password up front — admin-invited via
+    // a shared temp password (must_change_password forces a real one on
+    // first sign-in), self-service via signup — so there's no more
+    // "invited but never set one" case to hint at here (that hint pointed
+    // at the OTP sign-in flow, which is hidden; see sign-in-form.tsx).
+    return { ok: false, error: "Incorrect email or password." };
   }
 
   redirect("/dashboard");

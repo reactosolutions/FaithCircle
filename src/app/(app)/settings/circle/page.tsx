@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import {
   getCircleSettings,
   listLedCircles,
@@ -18,11 +18,7 @@ export default async function CircleSettingsPage({
 }: {
   searchParams: Promise<{ circleId?: string }>;
 }) {
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  const { data: profile } = user
-    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
-    : { data: null };
+  const profile = await getViewerProfile();
 
   if (profile?.role !== "admin" && profile?.role !== "administrative") {
     notFound();

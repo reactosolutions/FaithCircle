@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { Icon } from "@/components/ui/icon";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -6,7 +7,7 @@ import { cn } from "@/lib/utils";
 // Server-renderable (plain <Link>s, no client JS needed) — builds each
 // page's href by cloning the current searchParams and swapping `page`, so
 // it composes with whatever other filters a caller already has in the URL.
-export function Pagination({
+export async function Pagination({
   page,
   pageCount,
   basePath,
@@ -18,6 +19,7 @@ export function Pagination({
   searchParams: Record<string, string | undefined>;
 }) {
   if (pageCount <= 1) return null;
+  const t = await getTranslations("Common");
 
   function hrefFor(target: number) {
     const params = new URLSearchParams();
@@ -34,7 +36,7 @@ export function Pagination({
   }
 
   return (
-    <nav className="flex items-center justify-between gap-3" aria-label="Pagination">
+    <nav className="flex items-center justify-between gap-3" aria-label={t("paginationLabel")}>
       <Link
         href={hrefFor(page - 1)}
         aria-disabled={page <= 1}
@@ -46,11 +48,9 @@ export function Pagination({
         )}
       >
         <Icon name="chevron_left" size={16} data-icon="inline-start" />
-        Previous
+        {t("previousLabel")}
       </Link>
-      <span className="text-sm text-muted-foreground">
-        Page {page} of {pageCount}
-      </span>
+      <span className="text-sm text-muted-foreground">{t("pageLabel", { page, pageCount })}</span>
       <Link
         href={hrefFor(page + 1)}
         aria-disabled={page >= pageCount}
@@ -61,7 +61,7 @@ export function Pagination({
           page >= pageCount && "pointer-events-none opacity-50",
         )}
       >
-        Next
+        {t("nextLabel")}
         <Icon name="chevron_right" size={16} data-icon="inline-end" />
       </Link>
     </nav>

@@ -3,7 +3,7 @@ import { Inter, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Toaster } from "@/components/ui/sonner";
-import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { getViewerProfile } from "@/features/members/queries";
 import "./globals.css";
 
 const inter = Inter({
@@ -37,23 +37,15 @@ export default async function RootLayout({
   const locale = await getLocale();
   const messages = await getMessages();
 
-  // Cheap, cache()-deduped lookup — theme is otherwise only resolved deep
-  // inside (app)/layout.tsx, scoped to its own wrapper div rather than
-  // <html>/<body> (see that file's comment on why). The Toaster below is
-  // mounted once here so a single toast() call doesn't render twice; without
-  // this it would never sit inside a `.dark` ancestor and would stay
-  // light-styled even when the viewer's preference is dark.
-  const user = await getCachedUser();
-  let themeClass = "";
-  if (user) {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("theme")
-      .eq("id", user.id)
-      .single();
-    themeClass = profile?.theme === "dark" ? "dark" : "";
-  }
+  // getViewerProfile() is React-cache()-deduped per request — (app)/layout.tsx
+  // calls the exact same function for the exact same row, so between the two
+  // of them the profile is fetched at most once per request rather than
+  // twice. The Toaster below is mounted once here so a single toast() call
+  // doesn't render twice; without this it would never sit inside a `.dark`
+  // ancestor and would stay light-styled even when the viewer's preference
+  // is dark.
+  const profile = await getViewerProfile();
+  const themeClass = profile?.theme === "dark" ? "dark" : "";
 
   return (
     <html

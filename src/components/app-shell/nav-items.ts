@@ -25,7 +25,13 @@ export const NAV_ITEMS: NavItem[] = [
     roles: ["admin", "administrative"],
     primary: true,
   },
-  { href: "/circles", labelKey: "circles", icon: "group_work", roles: ["admin"], primary: true },
+  // Available to every role — admin gets the org-wide management view,
+  // everyone else a read-only "my circles" view (see circles/page.tsx).
+  // Not `primary`: the bottom tab bar's 5-slot budget (Home/Calendar/
+  // Homework/Attendance/More per CLAUDE.md) is already full for
+  // admin/administrative once Attendance is in it, so this lives under
+  // "More" for everyone rather than only for some roles.
+  { href: "/circles", labelKey: "circles", icon: "group_work" },
   { href: "/members", labelKey: "members", icon: "group" },
   { href: "/settings", labelKey: "settings", icon: "settings" },
 ];

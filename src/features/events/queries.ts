@@ -18,30 +18,35 @@ export const listViewerCircles = cache(async () => {
   return data;
 });
 
-// Events for a circle's calendar = events it owns ∪ events it's been
-// invited to via event_circles. RLS already scopes both queries to circles
-// the viewer belongs to, so no separate membership check is needed here —
-// this just widens *which* events show up on a given circle's calendar
-// beyond the ones it organizes itself.
+// Events for the combined "all circles" calendar = events owned by any of
+// these circles ∪ events any of them have been invited to via
+// event_circles. RLS already scopes both queries to circles the viewer
+// belongs to, so no separate membership check is needed here — this just
+// widens *which* events show up beyond the ones a circle organizes itself.
+// circleIds is normally every circle listViewerCircles() returns for the
+// current viewer (there's no more single-circle-scoped calendar view), but
+// the parameter stays a list rather than being folded into "all my
+// circles" internally so a future narrower use isn't precluded.
 export async function listEvents({
-  circleId,
+  circleIds,
   from,
   to,
 }: {
-  circleId: string;
+  circleIds: string[];
   from?: string;
   to?: string;
 }) {
+  if (circleIds.length === 0) return [];
   const supabase = await createClient();
 
-  let ownQuery = supabase.from("events").select("*").eq("circle_id", circleId).order("starts_at");
+  let ownQuery = supabase.from("events").select("*").in("circle_id", circleIds).order("starts_at");
   if (from) ownQuery = ownQuery.gte("starts_at", from);
   if (to) ownQuery = ownQuery.lt("starts_at", to);
 
   const { data: invitedRows, error: invitedError } = await supabase
     .from("event_circles")
     .select("event_id")
-    .eq("circle_id", circleId);
+    .in("circle_id", circleIds);
   if (invitedError) throw invitedError;
   const invitedIds = (invitedRows ?? []).map((row) => row.event_id);
 
@@ -162,16 +167,14 @@ export async function listHostCandidates(circleId: string) {
   return data;
 }
 
-// Every other circle, with a live member count, for the "invite another
-// circle" audience picker — excludes the organizing circle itself, which is
-// always invited implicitly.
-export async function listOtherCirclesWithCounts(excludeCircleId: string) {
+// Every circle, with a live member count, for the "invite another circle"
+// audience picker — the organizing circle (always invited implicitly) is
+// filtered out client-side against whichever one is currently selected in
+// ScheduleEventDialog's own owning-circle dropdown, since that can change
+// after this is fetched.
+export async function listAllCirclesWithCounts() {
   const supabase = await createClient();
-  const { data: circles, error } = await supabase
-    .from("circles")
-    .select("id, name")
-    .neq("id", excludeCircleId)
-    .order("name");
+  const { data: circles, error } = await supabase.from("circles").select("id, name").order("name");
   if (error) throw error;
   if (!circles || circles.length === 0) return [];
 

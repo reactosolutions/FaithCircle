@@ -19,3 +19,19 @@ export async function NotificationBell() {
     </Link>
   );
 }
+
+// Streamed-in via Suspense (see AppHeader) — the unread count is an extra
+// Postgres round trip unrelated to the page's own content, and every single
+// navigation in the app was blocking on it before the rest of the page
+// could paint. This renders instantly (no unread dot, same dimensions) and
+// the real bell swaps in once the count resolves.
+export function NotificationBellFallback({ label }: { label: string }) {
+  return (
+    <span
+      aria-label={label}
+      className="relative flex size-11 shrink-0 items-center justify-center rounded-full md:size-8"
+    >
+      <Icon name="notifications" size={20} className="text-foreground" />
+    </span>
+  );
+}
