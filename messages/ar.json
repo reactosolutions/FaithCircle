@@ -728,7 +728,6 @@
   "ChangePassword": {
     "title": "عيّن كلمة مرور جديدة",
     "subtitle": "لأمان حسابك، اختر كلمة مرور جديدة قبل المتابعة.",
-    "tempPasswordLabel": "كلمة المرور المؤقتة",
     "newPasswordLabel": "كلمة المرور الجديدة",
     "confirmPasswordLabel": "تأكيد كلمة المرور",
     "savingButton": "جارٍ الحفظ…",

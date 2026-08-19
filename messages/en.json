@@ -728,7 +728,6 @@
   "ChangePassword": {
     "title": "Set a new password",
     "subtitle": "For your security, choose a new password before continuing.",
-    "tempPasswordLabel": "Temporary password",
     "newPasswordLabel": "New password",
     "confirmPasswordLabel": "Confirm password",
     "savingButton": "Saving…",

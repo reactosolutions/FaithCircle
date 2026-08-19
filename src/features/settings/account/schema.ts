@@ -20,3 +20,18 @@ export const changePasswordSchema = z
     error: "Passwords don't match.",
     path: ["confirmPassword"],
   });
+
+// No currentPassword field — reaching /change-password at all already
+// requires an active session signed in with the temp password, so asking
+// for it again immediately after is redundant, unlike changePasswordSchema
+// (settings, where re-proving the current password guards against a
+// session left open on a shared device).
+export const requiredPasswordChangeSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    error: "Passwords don't match.",
+    path: ["confirmPassword"],
+  });

@@ -5,7 +5,7 @@ import { refresh } from "next/cache";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult } from "@/lib/action-result";
-import { changePasswordSchema, updateAccountSchema } from "./schema";
+import { changePasswordSchema, requiredPasswordChangeSchema, updateAccountSchema } from "./schema";
 
 export async function updateAccount(
   _prevState: ActionResult | undefined,
@@ -38,47 +38,6 @@ export async function updateAccount(
   return { ok: true };
 }
 
-// Shared by changePassword (settings) and changeRequiredPassword (the
-// forced-change gate) — the verify-then-update logic is security-sensitive
-// enough that it shouldn't have two chances to drift apart; only the
-// around-it behavior (redirect, clearing must_change_password) differs.
-async function verifyAndUpdatePassword(
-  currentPassword: string | undefined,
-  newPassword: string,
-): Promise<ActionResult> {
-  const supabase = await createClient();
-  const user = await getCachedUser();
-  if (!user?.email) {
-    return { ok: false, error: "You need to sign in again." };
-  }
-
-  const hasPasswordIdentity = user.identities?.some((identity) => identity.provider === "email");
-
-  if (hasPasswordIdentity) {
-    if (!currentPassword) {
-      return { ok: false, error: "Enter your current password." };
-    }
-    // Supabase's updateUser() doesn't itself re-check the current password —
-    // verify it explicitly by attempting a fresh sign-in before applying
-    // the change, so this can't be used to hijack a session left open on a
-    // shared device.
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    });
-    if (verifyError) {
-      return { ok: false, error: "Current password is incorrect." };
-    }
-  }
-
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) {
-    return { ok: false, error: "Could not update your password." };
-  }
-
-  return { ok: true };
-}
-
 export async function changePassword(
   _prevState: ActionResult | undefined,
   formData: FormData,
@@ -92,20 +51,52 @@ export async function changePassword(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  return verifyAndUpdatePassword(parsed.data.currentPassword, parsed.data.password);
+  const supabase = await createClient();
+  const user = await getCachedUser();
+  if (!user?.email) {
+    return { ok: false, error: "You need to sign in again." };
+  }
+
+  const hasPasswordIdentity = user.identities?.some((identity) => identity.provider === "email");
+
+  if (hasPasswordIdentity) {
+    if (!parsed.data.currentPassword) {
+      return { ok: false, error: "Enter your current password." };
+    }
+    // Supabase's updateUser() doesn't itself re-check the current password —
+    // verify it explicitly by attempting a fresh sign-in before applying
+    // the change, so this can't be used to hijack a session left open on a
+    // shared device. changeRequiredPassword (the forced-change gate) skips
+    // this: reaching that page at all already required a live session
+    // signed in with the temp password, so re-verifying it there would be
+    // redundant rather than extra security.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: parsed.data.currentPassword,
+    });
+    if (verifyError) {
+      return { ok: false, error: "Current password is incorrect." };
+    }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    return { ok: false, error: "Could not update your password." };
+  }
+
+  return { ok: true };
 }
 
 // The forced-change gate (app)/layout.tsx redirects to when
-// profiles.must_change_password is true — an admin-set temp password
-// (invite or reset) always has a password identity already, so this always
-// hits verifyAndUpdatePassword's "confirm the current one first" branch,
-// which doubles as proof they actually received the right temp password.
+// profiles.must_change_password is true. No current-password check here —
+// unlike changePassword (settings), reaching this page at all already
+// requires a live session signed in with the temp password, so asking for
+// it again immediately after is redundant rather than extra security.
 export async function changeRequiredPassword(
   _prevState: ActionResult | undefined,
   formData: FormData,
 ): Promise<ActionResult> {
-  const parsed = changePasswordSchema.safeParse({
-    currentPassword: formData.get("currentPassword") || undefined,
+  const parsed = requiredPasswordChangeSchema.safeParse({
     password: formData.get("password"),
     confirmPassword: formData.get("confirmPassword"),
   });
@@ -113,15 +104,18 @@ export async function changeRequiredPassword(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
-  const result = await verifyAndUpdatePassword(parsed.data.currentPassword, parsed.data.password);
-  if (!result.ok) return result;
-
   const supabase = await createClient();
   const user = await getCachedUser();
-  if (user) {
-    await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
+  if (!user) {
+    return { ok: false, error: "You need to sign in again." };
   }
 
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
+  if (error) {
+    return { ok: false, error: "Could not update your password." };
+  }
+
+  await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
   redirect("/dashboard");
 }
 

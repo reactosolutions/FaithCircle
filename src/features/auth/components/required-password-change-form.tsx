@@ -9,11 +9,9 @@ import { PasswordStrengthMeter } from "./password-strength-meter";
 import { changeRequiredPassword } from "@/features/settings/account/actions";
 import type { ActionResult } from "@/lib/action-result";
 
-// The temp-password field here is the same "current password" the account
-// settings PasswordForm asks for when hasPassword is true — always shown
-// here since an admin-created or admin-reset account always has one
-// (never the "first password ever" case that form's hasPassword=false
-// branch covers).
+// No "current/temp password" field — reaching this page at all already
+// required signing in with it, so re-asking here would just be redundant
+// friction (see changeRequiredPassword's own comment on this).
 export function RequiredPasswordChangeForm() {
   const t = useTranslations("ChangePassword");
   const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
@@ -24,10 +22,6 @@ export function RequiredPasswordChangeForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="currentPassword">{t("tempPasswordLabel")}</Label>
-        <PasswordInput id="currentPassword" name="currentPassword" autoComplete="current-password" required />
-      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="password">{t("newPasswordLabel")}</Label>
         <PasswordInput
