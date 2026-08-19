@@ -6,7 +6,7 @@ import type { ActionResult } from "@/lib/action-result";
 // { ok, error } result and surfaces it the same way useActionToast does for
 // forms. Pass no successMessage for actions where success is silent (e.g. a
 // toggle that already shows its new state optimistically).
-export function notifyActionResult(result: ActionResult, successMessage?: string) {
+export function notifyActionResult<T>(result: ActionResult<T>, successMessage?: string) {
   if (result.ok) {
     if (successMessage) toast.success(successMessage);
   } else {

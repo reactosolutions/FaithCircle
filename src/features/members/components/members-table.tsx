@@ -7,6 +7,8 @@ import { StaggerItem } from "@/components/ui/stagger-item";
 import { RoleChangeDialog } from "./role-change-dialog";
 import { MemberStatusToggle } from "./member-status-toggle";
 import { EditMemberDialog } from "./edit-member-dialog";
+import { ResetPasswordDialog } from "./reset-password-dialog";
+import { CancelInvitationDialog } from "./cancel-invitation-dialog";
 import { RoleBadge } from "./role-badge";
 import { StatusBadge } from "./status-badge";
 import { CanHostIndicator } from "./can-host-indicator";
@@ -101,7 +103,15 @@ export function MembersTable({
                       circles={circles}
                       administrativeCandidates={administrativeCandidates}
                     />
-                    <MemberStatusToggle profileId={member.id} status={member.status} />
+                    <ResetPasswordDialog profileId={member.id} email={member.email ?? ""} />
+                    {member.status === "invited" ? (
+                      <CancelInvitationDialog
+                        profileId={member.id}
+                        memberName={member.full_name || member.email || t("defaultMemberName")}
+                      />
+                    ) : (
+                      <MemberStatusToggle profileId={member.id} status={member.status} />
+                    )}
                   </div>
                 </TableCell>
               )}
@@ -139,7 +149,15 @@ export function MembersTable({
                     circles={circles}
                     administrativeCandidates={administrativeCandidates}
                   />
-                  <MemberStatusToggle profileId={member.id} status={member.status} />
+                  <ResetPasswordDialog profileId={member.id} email={member.email ?? ""} />
+                  {member.status === "invited" ? (
+                    <CancelInvitationDialog
+                      profileId={member.id}
+                      memberName={member.full_name || member.email || t("defaultMemberName")}
+                    />
+                  ) : (
+                    <MemberStatusToggle profileId={member.id} status={member.status} />
+                  )}
                 </div>
               )}
             </StaggerItem>

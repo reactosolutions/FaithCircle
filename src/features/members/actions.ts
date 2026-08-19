@@ -13,6 +13,7 @@ import {
   inviteMemberSchema,
   updateMemberProfileSchema,
   resetMemberPasswordSchema,
+  cancelInvitationSchema,
 } from "./schema";
 
 // No email system relied on for onboarding (see inviteMember/resetMemberPassword
@@ -281,6 +282,44 @@ export async function resetMemberPassword(input: unknown): Promise<ActionResult<
   }
 
   return { ok: true, data: { tempPassword } };
+}
+
+// members.deactivate is admin-only (see the Permissions matrix —
+// administrative never holds it), matching the request this cancel action
+// is for: only an admin can undo an invitation before the person ever
+// signs in. Restricted to status = 'invited' so this can never be used to
+// delete a real active/inactive member's account by mistake — that's what
+// updateMemberStatus's deactivate path is for, and it only ever flips a
+// status flag rather than deleting anything.
+export async function cancelInvitation(input: unknown): Promise<ActionResult> {
+  const parsed = cancelInvitationSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const actor = await requirePermission("members.deactivate");
+  if (!actor.ok) return actor;
+
+  const { data: target } = await actor.supabase
+    .from("profiles")
+    .select("status")
+    .eq("id", parsed.data.profileId)
+    .single();
+  if (target?.status !== "invited") {
+    return { ok: false, error: "This account is no longer just an invitation." };
+  }
+
+  // Deleting the auth.users row cascades to profiles (and from there to
+  // circle_members/circle_leaders) per their `on delete cascade` foreign
+  // keys — nothing else to clean up separately.
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.deleteUser(parsed.data.profileId);
+  if (error) {
+    return { ok: false, error: "Could not cancel the invitation." };
+  }
+
+  refresh();
+  return { ok: true };
 }
 
 // members.edit is 'own' for student and unavailable to administrative (see

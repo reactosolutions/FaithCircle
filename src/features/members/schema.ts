@@ -43,3 +43,7 @@ export const updateMemberProfileSchema = z.object({
 export const resetMemberPasswordSchema = z.object({
   profileId: z.uuid(),
 });
+
+export const cancelInvitationSchema = z.object({
+  profileId: z.uuid(),
+});
