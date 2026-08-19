@@ -38,6 +38,47 @@ export async function updateAccount(
   return { ok: true };
 }
 
+// Shared by changePassword (settings) and changeRequiredPassword (the
+// forced-change gate) — the verify-then-update logic is security-sensitive
+// enough that it shouldn't have two chances to drift apart; only the
+// around-it behavior (redirect, clearing must_change_password) differs.
+async function verifyAndUpdatePassword(
+  currentPassword: string | undefined,
+  newPassword: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const user = await getCachedUser();
+  if (!user?.email) {
+    return { ok: false, error: "You need to sign in again." };
+  }
+
+  const hasPasswordIdentity = user.identities?.some((identity) => identity.provider === "email");
+
+  if (hasPasswordIdentity) {
+    if (!currentPassword) {
+      return { ok: false, error: "Enter your current password." };
+    }
+    // Supabase's updateUser() doesn't itself re-check the current password —
+    // verify it explicitly by attempting a fresh sign-in before applying
+    // the change, so this can't be used to hijack a session left open on a
+    // shared device.
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+    if (verifyError) {
+      return { ok: false, error: "Current password is incorrect." };
+    }
+  }
+
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) {
+    return { ok: false, error: "Could not update your password." };
+  }
+
+  return { ok: true };
+}
+
 export async function changePassword(
   _prevState: ActionResult | undefined,
   formData: FormData,
@@ -51,37 +92,37 @@ export async function changePassword(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
 
+  return verifyAndUpdatePassword(parsed.data.currentPassword, parsed.data.password);
+}
+
+// The forced-change gate (app)/layout.tsx redirects to when
+// profiles.must_change_password is true — an admin-set temp password
+// (invite or reset) always has a password identity already, so this always
+// hits verifyAndUpdatePassword's "confirm the current one first" branch,
+// which doubles as proof they actually received the right temp password.
+export async function changeRequiredPassword(
+  _prevState: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get("currentPassword") || undefined,
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const result = await verifyAndUpdatePassword(parsed.data.currentPassword, parsed.data.password);
+  if (!result.ok) return result;
+
   const supabase = await createClient();
   const user = await getCachedUser();
-  if (!user?.email) {
-    return { ok: false, error: "You need to sign in again." };
+  if (user) {
+    await supabase.from("profiles").update({ must_change_password: false }).eq("id", user.id);
   }
 
-  const hasPasswordIdentity = user.identities?.some((identity) => identity.provider === "email");
-
-  if (hasPasswordIdentity) {
-    if (!parsed.data.currentPassword) {
-      return { ok: false, error: "Enter your current password." };
-    }
-    // Supabase's updateUser() doesn't itself re-check the current password —
-    // verify it explicitly by attempting a fresh sign-in before applying
-    // the change, so this can't be used to hijack a session left open on a
-    // shared device.
-    const { error: verifyError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: parsed.data.currentPassword,
-    });
-    if (verifyError) {
-      return { ok: false, error: "Current password is incorrect." };
-    }
-  }
-
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) {
-    return { ok: false, error: "Could not update your password." };
-  }
-
-  return { ok: true };
+  redirect("/dashboard");
 }
 
 export async function signOutEverywhere() {

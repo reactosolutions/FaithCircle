@@ -175,6 +175,13 @@ alter table public.profiles add column if not exists hide_address_until_rsvp boo
 -- status alone can't tell the two apart since both are 'pending'.
 alter table public.profiles add column if not exists profile_completed_at timestamptz;
 
+-- Set true whenever an admin creates or resets a password on someone's
+-- behalf (inviteMember, resetMemberPassword) — both hand the admin a temp
+-- password to share out of band, and this is what forces a change to a
+-- password only the account owner knows before they can use the app.
+-- Cleared by changeRequiredPassword() once they do.
+alter table public.profiles add column if not exists must_change_password boolean not null default false;
+
 create table if not exists public.circles (
   id uuid primary key default gen_random_uuid()
 );

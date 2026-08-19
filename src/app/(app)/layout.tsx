@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, email, role, status, language, theme, profile_completed_at")
+    .select("full_name, email, role, status, language, theme, profile_completed_at, must_change_password")
     .eq("id", user.id)
     .single();
 
@@ -29,6 +29,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // signed in (see the callback route's comment on the same point).
   if ((profile?.status === "invited" || profile?.status === "pending") && !profile.profile_completed_at) {
     redirect("/complete-profile");
+  }
+
+  // Set by inviteMember/resetMemberPassword whenever an admin hands someone
+  // a temp password directly (no email involved in either flow) — checked
+  // after the profile-completion gate so both can apply to the same
+  // first-ever sign-in without one skipping the other.
+  if (profile?.must_change_password) {
+    redirect("/change-password");
   }
 
   const role = profile?.role ?? "student";

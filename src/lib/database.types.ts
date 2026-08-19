@@ -93,6 +93,7 @@ export interface Database {
           phone_visibility: PhoneVisibility;
           hide_address_until_rsvp: boolean;
           profile_completed_at: string | null;
+          must_change_password: boolean;
         };
         Insert: Partial<Omit<Database["public"]["Tables"]["profiles"]["Row"], "id">> & {
           id: string;

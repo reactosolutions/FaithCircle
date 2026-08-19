@@ -725,6 +725,15 @@
     "submitButton": "Continue",
     "submitButtonPending": "Saving…"
   },
+  "ChangePassword": {
+    "title": "Set a new password",
+    "subtitle": "For your security, choose a new password before continuing.",
+    "tempPasswordLabel": "Temporary password",
+    "newPasswordLabel": "New password",
+    "confirmPasswordLabel": "Confirm password",
+    "savingButton": "Saving…",
+    "saveButton": "Continue"
+  },
   "PendingApproval": {
     "title": "Waiting for approval",
     "body": "Your account is set up — an admin just needs to approve it before you can see your circle. This usually doesn't take long."

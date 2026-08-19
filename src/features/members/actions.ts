@@ -226,9 +226,16 @@ export async function inviteMember(
 
   // handle_new_user() already created a default 'student' profile row for
   // the new auth user (see schema.sql) — apply the chosen name/role here.
+  // must_change_password forces them off this temp password on first sign-in
+  // (see the (app) layout's gate and changeRequiredPassword).
   const { error: profileError } = await adminClient
     .from("profiles")
-    .update({ role: parsed.data.role, full_name: parsed.data.fullName, status: "invited" })
+    .update({
+      role: parsed.data.role,
+      full_name: parsed.data.fullName,
+      status: "invited",
+      must_change_password: true,
+    })
     .eq("id", data.user.id);
 
   if (profileError) {
@@ -280,6 +287,13 @@ export async function resetMemberPassword(input: unknown): Promise<ActionResult<
   if (error) {
     return { ok: false, error: "Could not reset the password." };
   }
+
+  // Same forced-change gate inviteMember sets — this is a temp password
+  // too, just generated later instead of at account creation.
+  await adminClient
+    .from("profiles")
+    .update({ must_change_password: true })
+    .eq("id", parsed.data.profileId);
 
   return { ok: true, data: { tempPassword } };
 }
