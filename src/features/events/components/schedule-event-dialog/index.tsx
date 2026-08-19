@@ -33,12 +33,23 @@ export function ScheduleEventDialog({
   otherCircles,
   inviteCandidates,
   ownCircleMemberCount,
+  defaultStartsAt,
+  triggerIcon,
+  triggerVariant,
+  triggerClassName,
 }: {
   circleId: string;
   hosts: HostCandidate[];
   otherCircles: OtherCircle[];
   inviteCandidates: InviteCandidate[];
   ownCircleMemberCount: number;
+  // "YYYY-MM-DDTHH:mm" — pre-fills the date/time field when opened from a
+  // specific day (e.g. tapping a calendar day box) instead of the generic
+  // header trigger.
+  defaultStartsAt?: string;
+  triggerIcon?: string;
+  triggerVariant?: React.ComponentProps<typeof Button>["variant"];
+  triggerClassName?: string;
 }) {
   const t = useTranslations("Events");
   const DURATIONS = useDurations();
@@ -76,6 +87,9 @@ export function ScheduleEventDialog({
       desktopOpen={desktopOpen}
       onDesktopOpenChange={setDesktopOpen}
       triggerLabel={t("scheduleTrigger")}
+      triggerIcon={triggerIcon}
+      triggerVariant={triggerVariant}
+      triggerClassName={triggerClassName}
       title={t("scheduleTitle")}
       description={t("scheduleDescription")}
       dialogContentClassName="sm:max-w-md"
@@ -96,7 +110,13 @@ export function ScheduleEventDialog({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="startsAt">{t("dateTimeLabel")}</Label>
-            <Input id="startsAt" name="startsAt" type="datetime-local" required />
+            <Input
+              id="startsAt"
+              name="startsAt"
+              type="datetime-local"
+              defaultValue={defaultStartsAt}
+              required
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="durationMinutes">{t("durationLabel")}</Label>

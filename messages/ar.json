@@ -1,4 +1,7 @@
 {
+  "App": {
+    "name": "رواء"
+  },
   "Nav": {
     "dashboard": "الرئيسية",
     "home": "الرئيسية",
@@ -620,7 +623,7 @@
     "errorAccountExists": "هذا البريد الإلكتروني لديه بالفعل حساب بكلمة مرور. سجّل الدخول بكلمة المرور بدلاً من ذلك.",
     "welcomeBackTitle": "مرحبًا بعودتك",
     "signedInToast": "تم تسجيل الدخول.",
-    "signInSubtitle": "سجّل الدخول إلى حساب Faith Circle الخاص بك.",
+    "signInSubtitle": "سجّل الدخول إلى حساب رواء الخاص بك.",
     "emailLabel": "البريد الإلكتروني",
     "passwordLabel": "كلمة المرور",
     "forgotPasswordLink": "نسيت كلمة المرور؟",

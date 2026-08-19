@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Toaster } from "@/components/ui/sonner";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import "./globals.css";
@@ -21,10 +21,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Faith Circle",
-  description: "A home for your faith community's circles, meetings, and homework.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("App");
+  return {
+    title: t("name"),
+    description: "A home for your faith community's circles, meetings, and homework.",
+  };
+}
 
 export default async function RootLayout({
   children,

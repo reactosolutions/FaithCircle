@@ -13,6 +13,7 @@ export default async function JoinPage({
 }) {
   const { token } = await params;
   const t = await getTranslations("Auth");
+  const tApp = await getTranslations("App");
   const valid = await validateInviteToken(token);
 
   if (!valid) {
@@ -23,7 +24,7 @@ export default async function JoinPage({
     <div className="flex min-h-dvh flex-1 flex-col items-center justify-center bg-background px-4 py-16">
       <div className="mb-8 flex flex-col items-center gap-2">
         <Image src={logo} alt="" className="size-16 rounded-full object-cover" />
-        <span className="font-heading text-2xl font-semibold text-primary">Faith Circle</span>
+        <span className="font-heading text-2xl font-semibold text-primary">{tApp("name")}</span>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader>

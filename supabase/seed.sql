@@ -1,4 +1,4 @@
--- Faith Circle seed data
+-- Rewaa (رواء) seed data
 -- Run AFTER schema.sql, in the Supabase SQL Editor. Idempotent: re-running
 -- it will not create duplicates. All seed users share the password:
 -- FaithCircle123!

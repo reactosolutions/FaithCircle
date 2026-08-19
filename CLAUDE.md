@@ -1,6 +1,6 @@
 @AGENTS.md
 
-# Faith Circle
+# Rewaa (رواء)
 
 A web app for a faith community group that meets on a recurring schedule at members'
 homes for faith-oriented discussion. Members are organized into circles; each circle has

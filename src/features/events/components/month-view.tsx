@@ -11,12 +11,27 @@ import {
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { eventDayKey, formatEventTime } from "../format";
-import { FORMAT_BORDER_CLASS, FORMAT_ICON_NAME } from "./format-badge";
+import { FORMAT_BG_CLASS, FORMAT_BORDER_CLASS, FORMAT_ICON_NAME, FORMAT_TEXT_CLASS } from "./format-badge";
 import { Icon } from "@/components/ui/icon";
 import { hijri } from "@/lib/format";
+import { ScheduleEventDialog } from "./schedule-event-dialog";
+import type { HostCandidate, InviteCandidate, OtherCircle } from "./schedule-event-dialog/constants";
 import type { Database, LanguagePreference } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
+
+// Scheduling props are all optional and only provided together (see
+// EventsPage) — when present and the viewer has schedule permission,
+// clicking a day box opens the same schedule-meeting dialog used by the
+// page header's "Schedule" button, pre-filled with that day's date.
+interface SchedulingProps {
+  canSchedule?: boolean;
+  circleId?: string;
+  hosts?: HostCandidate[];
+  otherCircles?: OtherCircle[];
+  inviteCandidates?: InviteCandidate[];
+  ownCircleMemberCount?: number;
+}
 
 export function MonthView({
   anchor,
@@ -26,6 +41,12 @@ export function MonthView({
   weekStartsOn = 0,
   showHijri = false,
   locale = "en",
+  canSchedule = false,
+  circleId,
+  hosts = [],
+  otherCircles = [],
+  inviteCandidates = [],
+  ownCircleMemberCount = 0,
 }: {
   anchor: Date;
   events: EventRow[];
@@ -37,7 +58,7 @@ export function MonthView({
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   showHijri?: boolean;
   locale?: LanguagePreference;
-}) {
+} & SchedulingProps) {
   const t = useTranslations("Events");
   const ALL_WEEKDAY_LABELS = [
     t("weekdaySun"),
@@ -96,16 +117,31 @@ export function MonthView({
                 !isSameMonth(day, anchor) && "bg-muted/40 text-muted-foreground",
               )}
             >
-              <span
-                className={cn(
-                  "text-xs",
-                  key === todayKey
-                    ? "flex size-5 items-center justify-center rounded-full bg-warning font-medium text-warning-foreground"
-                    : "text-muted-foreground",
+              <div className="flex items-center justify-between gap-1">
+                <span
+                  className={cn(
+                    "text-xs",
+                    key === todayKey
+                      ? "flex size-5 items-center justify-center rounded-full bg-warning font-medium text-warning-foreground"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {format(day, "d")}
+                </span>
+                {canSchedule && circleId && (
+                  <ScheduleEventDialog
+                    circleId={circleId}
+                    hosts={hosts}
+                    otherCircles={otherCircles}
+                    inviteCandidates={inviteCandidates}
+                    ownCircleMemberCount={ownCircleMemberCount}
+                    defaultStartsAt={`${key}T18:00`}
+                    triggerIcon="add"
+                    triggerVariant="ghost"
+                    triggerClassName="size-5! text-muted-foreground"
+                  />
                 )}
-              >
-                {format(day, "d")}
-              </span>
+              </div>
               <div className="mt-1 flex flex-col gap-1">
                 {dayEvents.map((event) => {
                   return (
@@ -113,8 +149,10 @@ export function MonthView({
                       key={event.id}
                       href={`/events/${event.id}`}
                       className={cn(
-                        "flex items-center gap-1 truncate rounded-md border-s-2 bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/20",
+                        "flex items-center gap-1 truncate rounded-md border-s-2 px-1.5 py-0.5 text-xs font-medium",
                         FORMAT_BORDER_CLASS[event.format],
+                        FORMAT_BG_CLASS[event.format],
+                        FORMAT_TEXT_CLASS[event.format],
                       )}
                     >
                       <Icon name={FORMAT_ICON_NAME[event.format]} size={12} />
@@ -170,14 +208,28 @@ export function MonthView({
         </div>
 
         <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-sm font-semibold text-foreground">
-              {format(new Date(`${selectedKey}T00:00:00`), "EEEE, MMM d")}
-            </h2>
-            {showHijri && (
-              <span className="text-xs text-muted-foreground">
-                {hijri(new Date(`${selectedKey}T00:00:00`), locale)}
-              </span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-sm font-semibold text-foreground">
+                {format(new Date(`${selectedKey}T00:00:00`), "EEEE, MMM d")}
+              </h2>
+              {showHijri && (
+                <span className="text-xs text-muted-foreground">
+                  {hijri(new Date(`${selectedKey}T00:00:00`), locale)}
+                </span>
+              )}
+            </div>
+            {canSchedule && circleId && (
+              <ScheduleEventDialog
+                circleId={circleId}
+                hosts={hosts}
+                otherCircles={otherCircles}
+                inviteCandidates={inviteCandidates}
+                ownCircleMemberCount={ownCircleMemberCount}
+                defaultStartsAt={`${selectedKey}T18:00`}
+                triggerIcon="add"
+                triggerVariant="outline"
+              />
             )}
           </div>
           {selectedEvents.length === 0 && (
@@ -195,7 +247,7 @@ export function MonthView({
                   )}
                 >
                   <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
-                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className="shrink-0 text-muted-foreground" />
+                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
                     <span className="truncate">{event.title}</span>
                   </span>
                   <span className="shrink-0 text-muted-foreground">

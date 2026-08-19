@@ -27,6 +27,15 @@ export const FORMAT_TEXT_CLASS: Record<EventFormat, string> = {
   hybrid: "text-foreground",
 };
 
+// Matching tinted backgrounds for the same three colors, used by the
+// calendar pills so each meeting type reads as its own color at a glance,
+// not just via the icon/border.
+export const FORMAT_BG_CLASS: Record<EventFormat, string> = {
+  in_person: "bg-primary/10 hover:bg-primary/20",
+  online: "bg-info/10 hover:bg-info/20",
+  hybrid: "bg-foreground/10 hover:bg-foreground/20",
+};
+
 export function FormatBadge({ format, className }: { format: EventFormat; className?: string }) {
   const FORMAT_LABEL = useFormatLabel();
   return (

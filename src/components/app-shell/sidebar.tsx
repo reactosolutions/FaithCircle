@@ -13,6 +13,7 @@ import type { UserRole } from "@/lib/database.types";
 export function AppSidebar({ role }: { role: UserRole }) {
   const pathname = usePathname();
   const t = useTranslations("Nav");
+  const tApp = useTranslations("App");
   const items = navItemsForRole(role);
 
   return (
@@ -24,7 +25,7 @@ export function AppSidebar({ role }: { role: UserRole }) {
           className="size-8 shrink-0 rounded-full object-cover"
         />
         <span className="font-heading text-lg font-semibold text-sidebar-primary">
-          Faith Circle
+          {tApp("name")}
         </span>
       </span>
       <nav className="flex flex-col gap-1">

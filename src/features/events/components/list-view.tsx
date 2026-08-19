@@ -3,7 +3,7 @@ import { formatInTimeZone } from "date-fns-tz";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { CIRCLE_TIME_ZONE, formatEventDate, formatEventTime } from "../format";
-import { FORMAT_BORDER_CLASS, FORMAT_ICON_NAME } from "./format-badge";
+import { FORMAT_BORDER_CLASS, FORMAT_ICON_NAME, FORMAT_TEXT_CLASS } from "./format-badge";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Database } from "@/lib/database.types";
@@ -41,7 +41,7 @@ export function ListView({ events }: { events: EventRow[] }) {
                   )}
                 >
                   <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
-                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className="shrink-0 text-muted-foreground" />
+                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
                     <span className="truncate">{event.title}</span>
                   </span>
                   <span className="shrink-0 text-xs text-muted-foreground">

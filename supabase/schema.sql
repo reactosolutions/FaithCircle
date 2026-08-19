@@ -1,4 +1,4 @@
--- Faith Circle schema
+-- Rewaa (رواء) schema
 -- Idempotent and re-runnable: paste into the Supabase SQL Editor any time.
 -- Tables use `create table if not exists` (never dropped, to protect data),
 -- followed by `alter table ... add column if not exists` for every column —

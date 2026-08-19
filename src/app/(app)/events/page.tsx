@@ -169,6 +169,12 @@ export default async function EventsPage({
           weekStartsOn={weekStartsOn}
           showHijri={showHijri}
           locale={locale}
+          canSchedule={canSchedule}
+          circleId={circleId}
+          hosts={hosts}
+          otherCircles={otherCircles}
+          inviteCandidates={inviteCandidates}
+          ownCircleMemberCount={ownCircleMemberCount}
         />
       )}
       {view === "week" && (

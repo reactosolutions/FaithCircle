@@ -1,4 +1,7 @@
 {
+  "App": {
+    "name": "Rewaa"
+  },
   "Nav": {
     "dashboard": "Dashboard",
     "home": "Home",
@@ -620,7 +623,7 @@
     "errorAccountExists": "That email already has a password-based account. Sign in with your password instead.",
     "welcomeBackTitle": "Welcome back",
     "signedInToast": "Signed in.",
-    "signInSubtitle": "Sign in to your Faith Circle account.",
+    "signInSubtitle": "Sign in to your Rewaa account.",
     "emailLabel": "Email",
     "passwordLabel": "Password",
     "forgotPasswordLink": "Forgot password?",

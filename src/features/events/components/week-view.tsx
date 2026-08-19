@@ -3,7 +3,7 @@ import { eachDayOfInterval, endOfWeek, format, startOfWeek } from "date-fns";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { eventDayKey, formatEventTime } from "../format";
-import { FORMAT_ICON_NAME } from "./format-badge";
+import { FORMAT_ICON_NAME, FORMAT_TEXT_CLASS } from "./format-badge";
 import { Icon } from "@/components/ui/icon";
 import type { Database } from "@/lib/database.types";
 
@@ -61,7 +61,7 @@ export function WeekView({
                     href={`/events/${event.id}`}
                     className="flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-primary"
                   >
-                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className="shrink-0 text-muted-foreground" />
+                    <Icon name={FORMAT_ICON_NAME[event.format]} size={14} className={cn("shrink-0", FORMAT_TEXT_CLASS[event.format])} />
                     {formatEventTime(event.starts_at)} — {event.title}
                   </Link>
                 );
