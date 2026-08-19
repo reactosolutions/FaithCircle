@@ -1,0 +1,180 @@
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { getEvent } from "@/features/events/queries";
+import { createClient, getCachedUser } from "@/lib/supabase/server";
+import {
+  canJoinMeeting,
+  formatEventDate,
+  formatEventTime,
+  minutesUntilJoinOpens,
+} from "@/features/events/format";
+import type { MeetProvider } from "@/lib/database.types";
+import { RsvpControl } from "@/features/events/components/rsvp-control";
+import { SelfAttendanceControl } from "@/features/attendance/components/self-attendance-control";
+import { FormatBadge } from "@/features/events/components/format-badge";
+import { AttendeeList } from "@/features/events/components/attendee-list";
+import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { hijri } from "@/lib/format";
+
+export default async function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const t = await getTranslations("Events");
+  const MEET_PROVIDER_LABEL: Record<MeetProvider, string> = {
+    google_meet: t("meetProviderGoogleMeet"),
+    zoom: t("meetProviderZoom"),
+    teams: t("meetProviderTeams"),
+    other: t("meetProviderOther"),
+  };
+  const result = await getEvent(id);
+
+  if (!result) {
+    notFound();
+  }
+
+  const { event, circle, host, rsvps, invitedCircles, invitees, attendance } = result;
+
+  const supabase = await createClient();
+  const user = await getCachedUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role, show_hijri_dates, language").eq("id", user.id).single()
+    : { data: null };
+
+  const ownRsvp = rsvps.find((r) => r.profile_id === user?.id);
+  const ownAttendance = attendance.find((a) => a.profile_id === user?.id);
+  const goingCount = rsvps.filter((r) => r.response === "going").length;
+  const isLeader = profile?.role === "admin" || circle?.leader_id === user?.id;
+
+  // meet_url only ever reaches this component if RLS already let the row
+  // through — events_select requires the viewer to be the owning circle's
+  // leader/admin or a resolved member (event_circles ∪ event_invitees), so
+  // there's no separate "am I allowed to see this link" check to do here.
+  const canJoin = event.meet_url ? canJoinMeeting(event.starts_at, event.ends_at) : false;
+  const minutesUntilOpen = event.meet_url ? minutesUntilJoinOpens(event.starts_at) : 0;
+
+  const inPersonGoing = rsvps.filter(
+    (r) => r.response === "going" && r.attend_mode === "in_person",
+  ).length;
+  const overCapacity =
+    event.in_person_capacity != null && inPersonGoing > event.in_person_capacity;
+
+  return (
+    <div className="flex max-w-xl flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-xl">{event.title}</CardTitle>
+            <FormatBadge format={event.format} />
+          </div>
+          {circle && <p className="text-sm text-muted-foreground">{circle.name}</p>}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-foreground">
+              {formatEventDate(event.starts_at)} · {formatEventTime(event.starts_at)}
+            </span>
+            {profile?.show_hijri_dates && (
+              <span className="text-xs text-muted-foreground">
+                {hijri(new Date(event.starts_at), profile.language)}
+              </span>
+            )}
+          </div>
+
+          {event.description && <p className="text-sm text-foreground">{event.description}</p>}
+
+          {(invitedCircles.length > 0 || invitees.length > 0) && (
+            <p className="text-xs text-muted-foreground">
+              {t("alsoInvited", {
+                names: [
+                  ...invitedCircles.map((c) => c.name),
+                  ...invitees.map((i) => i.fullName ?? t("someone")),
+                ].join(", "),
+              })}
+            </p>
+          )}
+
+          {event.format !== "online" && (
+            <div className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm">
+              <span className="font-medium text-foreground">
+                {host ? t("hostedBy", { name: host.full_name ?? t("unnamed") }) : t("noHostAssigned")}
+              </span>
+              {event.address && <span className="text-muted-foreground">{event.address}</span>}
+              {event.in_person_capacity != null && (
+                <span className={overCapacity ? "text-destructive" : "text-muted-foreground"}>
+                  {t("inPersonSpots", { going: inPersonGoing, capacity: event.in_person_capacity })}
+                  {overCapacity ? t("overCapacitySuffix") : ""}
+                </span>
+              )}
+            </div>
+          )}
+
+          {event.format !== "in_person" && event.meet_url && (
+            <div className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
+              <span className="font-medium text-foreground">
+                {event.meet_provider ? MEET_PROVIDER_LABEL[event.meet_provider] : t("meetingLinkFallback")}
+              </span>
+              {event.meet_notes && <span className="text-muted-foreground">{event.meet_notes}</span>}
+              {canJoin ? (
+                <Button size="sm" className="w-fit rounded-full" render={<a href={event.meet_url} target="_blank" rel="noreferrer" />}>
+                  {t("joinMeeting")}
+                </Button>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {minutesUntilOpen > 0 ? t("linkOpensIn", { minutes: minutesUntilOpen }) : t("linkOpensSoon")}
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{t("peopleGoing", { count: goingCount })}</Badge>
+            {event.recurrence !== "none" && <Badge variant="outline">{t("recurring")}</Badge>}
+          </div>
+
+          {user && (
+            <RsvpControl
+              eventId={event.id}
+              format={event.format}
+              initialResponse={ownRsvp?.response ?? "no_response"}
+              initialAttendMode={ownRsvp?.attend_mode ?? null}
+              initialReasonCategory={ownRsvp?.reason_category ?? null}
+              initialReason={ownRsvp?.reason ?? null}
+            />
+          )}
+
+          {user && (
+            <SelfAttendanceControl
+              eventId={event.id}
+              format={event.format}
+              initialStatus={ownAttendance?.status ?? null}
+              initialMode={ownAttendance?.mode ?? null}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {isLeader && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("attendeesTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* reason/reason_category are admin-only now (see
+                schema.sql's event_rsvps_visible) — the data itself already
+                comes back redacted for a leader, but showReasons also
+                keeps the "why" line from rendering an empty gap for them. */}
+            <AttendeeList rsvps={rsvps} showReasons={profile?.role === "admin"} />
+          </CardContent>
+        </Card>
+      )}
+
+      <AuditHistorySection tableName="events" recordId={id} />
+    </div>
+  );
+}

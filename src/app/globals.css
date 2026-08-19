@@ -1,26 +1,178 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-heading);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success-foreground: var(--success-foreground);
+  --color-success: var(--success);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning: var(--warning);
+  --color-info-foreground: var(--info-foreground);
+  --color-info: var(--info);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Mint-teal token palette — repainted around the رواء logo's brand mint
+   (~hue 169°) per the Design system section of CLAUDE.md, replacing the
+   earlier Material 3 dark-forest/gold palette. Slot names stay the same
+   (background/primary/accent/etc.) so every component using bg-primary,
+   text-accent, etc. picks up the new palette automatically; nothing below
+   the token layer needed to change, except the one status color (attendance
+   "excused") that depended on accent being gold — see --warning below. */
+:root {
+  --background: #f3fcfa;
+  --foreground: #112c27;
+  --card: #ffffff;
+  --card-foreground: #112c27;
+  --popover: #ffffff;
+  --popover-foreground: #112c27;
+  --primary: #15473e;
+  --primary-foreground: #ffffff;
+  --secondary: #d2efea;
+  --secondary-foreground: #112c27;
+  --muted: #e4ecea;
+  --muted-foreground: #536a66;
+  /* The logo's actual mint (#89d2c5) — used for highlights, not buttons. */
+  --accent: #89d2c5;
+  --accent-foreground: #112c27;
+  --success: #2e7d5b;
+  --success-foreground: #ffffff;
+  /* Amber, deliberately off-hue from the mint brand family — the one
+     semantic color accent (gold) used to cover before the repaint. Needed
+     so "today" and "excused" status chips stay visually distinct from the
+     teal-family upcoming/in-person/primary colors. */
+  --warning: #a06308;
+  --warning-foreground: #ffffff;
+  /* "online" status color per CLAUDE.md's Motion section (online=indigo,
+     distinct from in-person=teal/primary) — kept as a fixed semantic hue,
+     unrelated to the brand mint. */
+  --info: #4c5fa8;
+  --info-foreground: #ffffff;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+  --border: #d6e0de;
+  --input: #d6e0de;
+  --ring: #15473e;
+  --chart-1: #15473e;
+  --chart-2: #89d2c5;
+  --chart-3: #2e7d5b;
+  --chart-4: #4c5fa8;
+  --chart-5: #536a66;
+  --radius: 0.75rem;
+  --sidebar: #e4ecea;
+  --sidebar-foreground: #112c27;
+  --sidebar-primary: #15473e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d2efea;
+  --sidebar-accent-foreground: #112c27;
+  --sidebar-border: #d6e0de;
+  --sidebar-ring: #15473e;
+}
+
+.dark {
+  --background: #121c1a;
+  --foreground: #e4ecea;
+  --card: #1b2725;
+  --card-foreground: #e4ecea;
+  --popover: #1b2725;
+  --popover-foreground: #e4ecea;
+  /* Dark-mode convention carried over from the old palette: primary in dark
+     mode is the light "inverse-primary" tone (near the logo's own mint,
+     #89d2c5) rather than a darkened version of the light primary. */
+  --primary: #a1d9ce;
+  --primary-foreground: #112c27;
+  --secondary: #293835;
+  --secondary-foreground: #e4ecea;
+  --muted: #30413d;
+  --muted-foreground: #8da5a1;
+  --accent: #5ebaa9;
+  --accent-foreground: #112c27;
+  --success: #6fcf9e;
+  --success-foreground: #00391f;
+  --warning: #f3c068;
+  --warning-foreground: #3a2400;
+  --info: #b0c0ff;
+  --info-foreground: #1a2a6b;
+  --destructive: #ffb4a9;
+  --destructive-foreground: #690002;
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: #a1d9ce;
+  --chart-1: #a1d9ce;
+  --chart-2: #5ebaa9;
+  --chart-3: #6fcf9e;
+  --chart-4: #b0c0ff;
+  --chart-5: #8da5a1;
+  --sidebar: #162220;
+  --sidebar-foreground: #e4ecea;
+  --sidebar-primary: #a1d9ce;
+  --sidebar-primary-foreground: #112c27;
+  --sidebar-accent: #293835;
+  --sidebar-accent-foreground: #e4ecea;
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: #a1d9ce;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Toasts (sonner) animate transform+opacity by default — collapse to an
+   opacity-only fade under prefers-reduced-motion, per CLAUDE.md's Motion
+   section ("this is not optional"). */
+@media (prefers-reduced-motion: reduce) {
+  [data-sonner-toast] {
+    transition-property: opacity !important;
+  }
 }
