@@ -38,7 +38,9 @@ export function ProgressRing({
     // motion — nothing to animate, so nothing to set here.
     if (reduceMotion) return;
     const controls = animate(0, value, {
-      duration: 0.8,
+      // Capped at 400ms — CLAUDE.md's Motion section: "nothing animates
+      // longer than 400ms."
+      duration: 0.4,
       ease: "easeOut",
       onUpdate: (v) => setDash(v),
     });

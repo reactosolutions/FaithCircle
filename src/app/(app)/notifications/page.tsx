@@ -4,6 +4,7 @@ import { MarkAllReadButton } from "@/features/notifications/components/mark-all-
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/app-shell/page-header";
+import { StaggerItem } from "@/components/ui/stagger-item";
 
 export default async function NotificationsPage() {
   const notifications = await listNotifications();
@@ -18,8 +19,10 @@ export default async function NotificationsPage() {
           {notifications.length === 0 && (
             <EmptyState icon="notifications_off" title="You're all caught up." />
           )}
-          {notifications.map((row) => (
-            <NotificationRow key={row.id} row={row} />
+          {notifications.map((row, index) => (
+            <StaggerItem key={row.id} index={index}>
+              <NotificationRow row={row} />
+            </StaggerItem>
           ))}
         </CardContent>
       </Card>

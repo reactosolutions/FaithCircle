@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StaggerItem } from "@/components/ui/stagger-item";
 import { RoleChangeDialog } from "./role-change-dialog";
 import { MemberStatusToggle } from "./member-status-toggle";
 import { EditMemberDialog } from "./edit-member-dialog";
@@ -61,8 +62,13 @@ export function MembersTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {members.map((member) => (
-            <TableRow key={member.id}>
+          {members.map((member, index) => (
+            <StaggerItem
+              key={member.id}
+              index={index}
+              as="tr"
+              className="border-b border-border transition-colors hover:bg-muted/40"
+            >
               <TableCell className="max-w-0">
                 <Link href={`/members/${member.id}`} className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-medium text-foreground">
@@ -99,15 +105,15 @@ export function MembersTable({
                   </div>
                 </TableCell>
               )}
-            </TableRow>
+            </StaggerItem>
           ))}
         </TableBody>
       </Table>
 
       <Card className="md:hidden">
         <CardContent className="flex flex-col divide-y divide-border p-0">
-          {members.map((member) => (
-            <div key={member.id} className="flex flex-col gap-3 px-4 py-4">
+          {members.map((member, index) => (
+            <StaggerItem key={member.id} index={index} className="flex flex-col gap-3 px-4 py-4">
               <Link href={`/members/${member.id}`} className="flex min-w-0 flex-col gap-1">
                 <span className="truncate text-sm font-medium text-foreground">
                   {member.full_name || member.email || t("unnamed")}
@@ -136,7 +142,7 @@ export function MembersTable({
                   <MemberStatusToggle profileId={member.id} status={member.status} />
                 </div>
               )}
-            </div>
+            </StaggerItem>
           ))}
         </CardContent>
       </Card>

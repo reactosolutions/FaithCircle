@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StaggerItem } from "@/components/ui/stagger-item";
 import { useFormatAuditRow } from "../audit-formatters";
 import { AuditRowDiff } from "./audit-row-diff";
 import type { Database } from "@/lib/database.types";
@@ -50,8 +51,10 @@ export function AuditLogList({ rows }: { rows: AuditRow[] }) {
 
   return (
     <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
-      {rows.map((row) => (
-        <AuditLogRow key={row.id} row={row} />
+      {rows.map((row, index) => (
+        <StaggerItem key={row.id} index={index}>
+          <AuditLogRow row={row} />
+        </StaggerItem>
       ))}
     </div>
   );

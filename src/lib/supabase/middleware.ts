@@ -65,16 +65,27 @@ export async function updateSession(request: NextRequest) {
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
   const redirectIfAuthed = REDIRECT_IF_AUTHED_ROUTES.some((route) => pathname.startsWith(route));
 
-  if (!user && !isPublicRoute) {
+  // A redirect response is a brand-new NextResponse — it does not inherit
+  // whatever cookies setAll() already wrote onto `response` above (e.g. a
+  // session token getClaims() just refreshed). Copying them over is what
+  // stops the browser from carrying a stale token into its next request:
+  // without this, a refresh right before a redirect gets silently dropped,
+  // the following request's auth check comes back different, and
+  // /sign-in <-> /dashboard bounce back and forth forever.
+  function redirectTo(path: string) {
     const url = request.nextUrl.clone();
-    url.pathname = "/sign-in";
-    return NextResponse.redirect(url);
+    url.pathname = path;
+    const redirectResponse = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+    return redirectResponse;
+  }
+
+  if (!user && !isPublicRoute) {
+    return redirectTo("/sign-in");
   }
 
   if (user && (redirectIfAuthed || pathname === "/")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return redirectTo("/dashboard");
   }
 
   return response;
