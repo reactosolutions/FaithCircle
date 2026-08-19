@@ -43,18 +43,3 @@ export async function listPermissionMatrix() {
   }));
 }
 
-// Self-service /signup accounts that finished the phone/hosting-availability
-// intake step and are now genuinely waiting on a human — status alone can't
-// tell "just signed up" from "actually waiting" apart, which is what
-// profile_completed_at is for (see (app)/layout.tsx).
-export async function listPendingApprovalProfiles() {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, phone, can_host, profile_completed_at")
-    .eq("status", "pending")
-    .not("profile_completed_at", "is", null)
-    .order("profile_completed_at", { ascending: true });
-  if (error) throw error;
-  return data;
-}

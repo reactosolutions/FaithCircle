@@ -10,6 +10,7 @@ import type { ActionResult } from "@/lib/action-result";
 import {
   updateMemberRoleSchema,
   updateMemberStatusSchema,
+  bulkUpdateMemberStatusSchema,
   inviteMemberSchema,
   updateMemberProfileSchema,
   resetMemberPasswordSchema,
@@ -157,6 +158,53 @@ export async function updateMemberStatus(input: unknown): Promise<ActionResult> 
     .from("profiles")
     .update({ status: parsed.data.status })
     .eq("id", parsed.data.profileId);
+
+  if (error) {
+    return { ok: false, error: "Could not update status." };
+  }
+
+  refresh();
+  return { ok: true };
+}
+
+// Bulk sibling of updateMemberStatus, for the Members page's multi-select
+// toolbar — same two safety rules, just evaluated over the whole selection
+// instead of one row: your own id is silently dropped from the batch
+// rather than failing the whole thing (a "select all" that happens to
+// include you shouldn't block everyone else), and a deactivation is
+// refused outright if it would leave zero active admins, computed as "how
+// many active admins exist outside this batch" so it can't be fooled by
+// admins appearing more than once or already being inactive.
+export async function bulkUpdateMemberStatus(input: unknown): Promise<ActionResult> {
+  const parsed = bulkUpdateMemberStatusSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const actor = await requirePermission("members.deactivate");
+  if (!actor.ok) return actor;
+
+  const targetIds = parsed.data.profileIds.filter((id) => id !== actor.userId);
+  if (targetIds.length === 0) {
+    return { ok: false, error: "You can't deactivate your own account." };
+  }
+
+  if (parsed.data.status !== "active") {
+    const { count } = await actor.supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin")
+      .eq("status", "active")
+      .not("id", "in", `(${targetIds.join(",")})`);
+    if ((count ?? 0) === 0) {
+      return { ok: false, error: "You can't deactivate every remaining admin." };
+    }
+  }
+
+  const { error } = await actor.supabase
+    .from("profiles")
+    .update({ status: parsed.data.status })
+    .in("id", targetIds);
 
   if (error) {
     return { ok: false, error: "Could not update status." };

@@ -5,13 +5,10 @@ import { getTranslations } from "next-intl/server";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import {
   getOrgSettings,
-  listPendingApprovalProfiles,
   listPendingJoinRequests,
   listPermissionMatrix,
 } from "@/features/settings/organization/queries";
-import { listViewerCircles } from "@/features/events/queries";
 import { RolesMatrix } from "@/features/settings/organization/components/roles-matrix";
-import { PendingApprovalQueue } from "@/features/settings/organization/components/pending-approval-queue";
 import { JoinPolicyForm } from "@/features/settings/organization/components/join-policy-form";
 import { JoinRequestsQueue } from "@/features/settings/organization/components/join-requests-queue";
 import { Button } from "@/components/ui/button";
@@ -29,12 +26,10 @@ export default async function OrganizationSettingsPage() {
     notFound();
   }
 
-  const [orgSettings, joinRequests, pendingApprovals, matrix, circles, headersList, t, tSettings] = await Promise.all([
+  const [orgSettings, joinRequests, matrix, headersList, t, tSettings] = await Promise.all([
     getOrgSettings(),
     listPendingJoinRequests(),
-    listPendingApprovalProfiles(),
     listPermissionMatrix(),
-    listViewerCircles(),
     headers(),
     getTranslations("Roles"),
     getTranslations("Settings"),
@@ -54,16 +49,6 @@ export default async function OrganizationSettingsPage() {
         </CardHeader>
         <CardContent>
           <RolesMatrix matrix={matrix} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("pendingApprovalTitle")}</CardTitle>
-          <CardDescription>{t("pendingApprovalDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <PendingApprovalQueue profiles={pendingApprovals} circles={circles} />
         </CardContent>
       </Card>
 

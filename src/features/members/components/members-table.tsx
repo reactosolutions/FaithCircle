@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
@@ -9,6 +12,7 @@ import { MemberStatusToggle } from "./member-status-toggle";
 import { EditMemberDialog } from "./edit-member-dialog";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import { CancelInvitationDialog } from "./cancel-invitation-dialog";
+import { MembersBulkToolbar } from "./members-bulk-toolbar";
 import { RoleBadge } from "./role-badge";
 import { StatusBadge } from "./status-badge";
 import { CanHostIndicator } from "./can-host-indicator";
@@ -27,6 +31,13 @@ export interface MemberRow {
 // data tables ("never allow horizontal scroll"). Both branches render from
 // the same `members` array so there's one source of truth for row content;
 // only the markup shape differs.
+//
+// Row-selection state (for the bulk toolbar: approve/reject pending
+// signups, deactivate/reactivate) lives here rather than in a parent
+// Server Component, which is what makes this a Client Component now —
+// selection is admin-only, matching settings.organization/
+// members.deactivate both being admin-only in the Permissions matrix, so
+// non-admin viewers never see checkboxes at all.
 export function MembersTable({
   members,
   isAdmin,
@@ -41,6 +52,17 @@ export function MembersTable({
   phoneById: Record<string, string | null>;
 }) {
   const t = useTranslations("Members");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  const allSelected = members.length > 0 && selectedIds.length === members.length;
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? [] : members.map((m) => m.id));
+  }
 
   if (members.length === 0) {
     return (
@@ -53,10 +75,28 @@ export function MembersTable({
   }
 
   return (
-    <>
+    <div className="flex flex-col gap-3">
+      {isAdmin && selectedIds.length > 0 && (
+        <MembersBulkToolbar
+          selectedIds={selectedIds}
+          circles={circles}
+          onDone={() => setSelectedIds([])}
+        />
+      )}
+
       <Table className="hidden md:table">
         <TableHeader>
           <TableRow>
+            {isAdmin && (
+              <TableHead className="w-11">
+                <input
+                  type="checkbox"
+                  aria-label={t("selectAllAriaLabel")}
+                  checked={allSelected}
+                  onChange={toggleAll}
+                />
+              </TableHead>
+            )}
             <TableHead>{t("colName")}</TableHead>
             <TableHead>{t("colRole")}</TableHead>
             <TableHead>{t("colStatus")}</TableHead>
@@ -71,6 +111,16 @@ export function MembersTable({
               as="tr"
               className="border-b border-border transition-colors hover:bg-muted/40"
             >
+              {isAdmin && (
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    aria-label={member.full_name || member.email || t("unnamed")}
+                    checked={selectedIds.includes(member.id)}
+                    onChange={() => toggle(member.id)}
+                  />
+                </TableCell>
+              )}
               <TableCell className="max-w-0">
                 <Link href={`/members/${member.id}`} className="flex min-w-0 flex-col gap-0.5">
                   <span className="truncate font-medium text-foreground">
@@ -124,17 +174,28 @@ export function MembersTable({
         <CardContent className="flex flex-col divide-y divide-border p-0">
           {members.map((member, index) => (
             <StaggerItem key={member.id} index={index} className="flex flex-col gap-3 px-4 py-4">
-              <Link href={`/members/${member.id}`} className="flex min-w-0 flex-col gap-1">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {member.full_name || member.email || t("unnamed")}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">{member.email}</span>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <RoleBadge role={member.role} />
-                  <StatusBadge status={member.status} />
-                  <CanHostIndicator canHost={member.can_host} />
-                </div>
-              </Link>
+              <div className="flex items-start gap-3">
+                {isAdmin && (
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    aria-label={member.full_name || member.email || t("unnamed")}
+                    checked={selectedIds.includes(member.id)}
+                    onChange={() => toggle(member.id)}
+                  />
+                )}
+                <Link href={`/members/${member.id}`} className="flex min-w-0 flex-1 flex-col gap-1">
+                  <span className="truncate text-sm font-medium text-foreground">
+                    {member.full_name || member.email || t("unnamed")}
+                  </span>
+                  <span className="truncate text-xs text-muted-foreground">{member.email}</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <RoleBadge role={member.role} />
+                    <StatusBadge status={member.status} />
+                    <CanHostIndicator canHost={member.can_host} />
+                  </div>
+                </Link>
+              </div>
               {isAdmin && (
                 <div className="flex flex-wrap items-center gap-2">
                   <EditMemberDialog
@@ -164,6 +225,6 @@ export function MembersTable({
           ))}
         </CardContent>
       </Card>
-    </>
+    </div>
   );
 }

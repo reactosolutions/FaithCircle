@@ -100,47 +100,56 @@ export async function rejectJoinRequest(id: string): Promise<ActionResult> {
   return { ok: true };
 }
 
-// Approves a self-service /signup sitting at status 'pending' (see
-// (app)/layout.tsx and the Signup section of CLAUDE.md) — distinct from
-// approveJoinRequest above, which is for the anonymous pre-account
-// /join/[token] flow. circleId is optional: an admin can approve someone
-// into the org without assigning a circle yet.
-export async function approveSignup(profileId: string, circleId?: string): Promise<ActionResult> {
+// Approves one or more self-service /signups sitting at status 'pending'
+// (see (app)/layout.tsx and the Signup section of CLAUDE.md) — distinct
+// from approveJoinRequest above, which is for the anonymous pre-account
+// /join/[token] flow. Lives here (not members/actions.ts) since it shares
+// settings.organization's admin-only gate with the rest of this file, even
+// though the UI that calls it is the Members page's bulk-selection
+// toolbar, not Settings > Organization. circleId is optional: an admin can
+// approve people into the org without assigning a circle yet. The
+// .in()+.eq("status","pending") pair means anything already changed status
+// by the time this runs (a race with another admin) is silently skipped
+// rather than clobbered.
+export async function approveSignups(profileIds: string[], circleId?: string): Promise<ActionResult> {
   const actor = await requirePermission("settings.organization");
   if (!actor.ok) return actor;
 
   const { error } = await actor.supabase
     .from("profiles")
     .update({ status: "active" })
-    .eq("id", profileId)
+    .in("id", profileIds)
     .eq("status", "pending");
 
   if (error) {
-    return { ok: false, error: "Could not approve this account." };
+    return { ok: false, error: "Could not approve these accounts." };
   }
 
   if (circleId) {
     await actor.supabase
       .from("circle_members")
-      .upsert({ circle_id: circleId, profile_id: profileId }, { onConflict: "circle_id,profile_id" });
+      .upsert(
+        profileIds.map((profileId) => ({ circle_id: circleId, profile_id: profileId })),
+        { onConflict: "circle_id,profile_id" },
+      );
   }
 
   refresh();
   return { ok: true };
 }
 
-export async function rejectSignup(profileId: string): Promise<ActionResult> {
+export async function rejectSignups(profileIds: string[]): Promise<ActionResult> {
   const actor = await requirePermission("settings.organization");
   if (!actor.ok) return actor;
 
   const { error } = await actor.supabase
     .from("profiles")
     .update({ status: "inactive" })
-    .eq("id", profileId)
+    .in("id", profileIds)
     .eq("status", "pending");
 
   if (error) {
-    return { ok: false, error: "Could not reject this account." };
+    return { ok: false, error: "Could not reject these accounts." };
   }
 
   refresh();

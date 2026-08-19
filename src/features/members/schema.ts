@@ -27,6 +27,11 @@ export const updateMemberStatusSchema = z.object({
   status: z.enum(PROFILE_STATUSES),
 });
 
+export const bulkUpdateMemberStatusSchema = z.object({
+  profileIds: z.array(z.uuid()).min(1),
+  status: z.enum(PROFILE_STATUSES),
+});
+
 export const inviteMemberSchema = z.object({
   email: z.email({ error: "Enter a valid email address." }),
   fullName: z.string().trim().min(1, { error: "Enter a name." }),
