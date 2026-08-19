@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { signInWithPassword } from "@/features/auth/actions";
 import { PasswordInput } from "@/features/auth/components/password-input";
-import { OtpSignInForm } from "@/features/auth/components/otp-sign-in-form";
 import { useActionToast } from "@/hooks/use-action-toast";
 import type { ActionResult } from "@/lib/action-result";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+// The OTP (email-a-code) sign-in path is hidden for the same reason Google
+// sign-in is — it depends on email delivery, which isn't reliable until
+// real SMTP is configured. OtpSignInForm and its actions are untouched, so
+// re-enabling this is just restoring the toggle button below.
 export function SignInForm() {
   const t = useTranslations("Auth");
   const [state, formAction, pending] = useActionState<ActionResult | undefined, FormData>(
@@ -19,19 +22,6 @@ export function SignInForm() {
     undefined,
   );
   useActionToast(state, t("signedInToast"));
-  const [useCode, setUseCode] = useState(false);
-
-  if (useCode) {
-    return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h2 className="font-heading text-lg font-semibold text-foreground">{t("otpTitle")}</h2>
-          <p className="text-sm text-muted-foreground">{t("otpSubtitle")}</p>
-        </div>
-        <OtpSignInForm onCancel={() => setUseCode(false)} />
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,14 +55,6 @@ export function SignInForm() {
           {t("signUpLink")}
         </Link>
       </p>
-
-      <button
-        type="button"
-        onClick={() => setUseCode(true)}
-        className="text-center text-xs font-medium text-primary underline"
-      >
-        {t("otpToggleLink")}
-      </button>
     </div>
   );
 }
