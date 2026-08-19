@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
-import { signInWithPassword, signInWithGoogle } from "@/features/auth/actions";
+import { signInWithPassword } from "@/features/auth/actions";
 import { PasswordInput } from "@/features/auth/components/password-input";
 import { OtpSignInForm } from "@/features/auth/components/otp-sign-in-form";
 import { useActionToast } from "@/hooks/use-action-toast";
@@ -56,18 +56,6 @@ export function SignInForm() {
         )}
         <Button type="submit" disabled={pending} className="rounded-full">
           {pending ? t("signingInButton") : t("signInButton")}
-        </Button>
-      </form>
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="h-px flex-1 bg-border" />
-        {t("orDivider")}
-        <div className="h-px flex-1 bg-border" />
-      </div>
-
-      <form action={signInWithGoogle}>
-        <Button type="submit" variant="outline" className="w-full rounded-full">
-          {t("googleButton")}
         </Button>
       </form>
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { signUp, signInWithGoogle, resendConfirmationEmail } from "../actions";
+import { signUp, resendConfirmationEmail } from "../actions";
 import { PasswordInput } from "./password-input";
 import { PasswordStrengthMeter } from "./password-strength-meter";
 import { useActionToast } from "@/hooks/use-action-toast";
@@ -135,18 +135,6 @@ export function SignupForm() {
 
         <Button type="submit" disabled={pending} className="rounded-full">
           {pending ? t("submitButtonPending") : t("submitButton")}
-        </Button>
-      </form>
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="h-px flex-1 bg-border" />
-        {t("orDivider")}
-        <div className="h-px flex-1 bg-border" />
-      </div>
-
-      <form action={signInWithGoogle}>
-        <Button type="submit" variant="outline" className="w-full rounded-full">
-          {t("googleButton")}
         </Button>
       </form>
 
