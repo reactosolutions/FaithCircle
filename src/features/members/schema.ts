@@ -39,3 +39,7 @@ export const updateMemberProfileSchema = z.object({
   fullName: z.string().trim().min(1, { error: "Enter a name." }),
   phone: z.preprocess(emptyToUndefined, z.string().trim().optional()),
 });
+
+export const resetMemberPasswordSchema = z.object({
+  profileId: z.uuid(),
+});

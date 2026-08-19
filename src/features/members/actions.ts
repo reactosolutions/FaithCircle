@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { refresh } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,17 @@ import {
   updateMemberStatusSchema,
   inviteMemberSchema,
   updateMemberProfileSchema,
+  resetMemberPasswordSchema,
 } from "./schema";
+
+// No email system relied on for onboarding (see inviteMember/resetMemberPassword
+// below) — a temp password an admin reads aloud or pastes into a message
+// needs to be typeable without ambiguity, so the easily-confused characters
+// (0/O, 1/l/I) are left out.
+const TEMP_PASSWORD_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+function generateTempPassword(length = 12): string {
+  return Array.from(randomBytes(length), (b) => TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length]).join("");
+}
 
 export async function updateMemberRole(input: unknown): Promise<ActionResult> {
   const parsed = updateMemberRoleSchema.safeParse(input);
@@ -155,9 +166,9 @@ export async function updateMemberStatus(input: unknown): Promise<ActionResult> 
 }
 
 export async function inviteMember(
-  _prevState: ActionResult | undefined,
+  _prevState: ActionResult<{ tempPassword: string }> | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult<{ tempPassword: string }>> {
   const parsed = inviteMemberSchema.safeParse({
     email: formData.get("email"),
     fullName: formData.get("fullName"),
@@ -190,13 +201,26 @@ export async function inviteMember(
     }
   }
 
+  // No email system relied on for onboarding — createUser() with a
+  // generated password and email_confirm: true makes the account usable
+  // immediately; the admin shares the password with the invitee directly
+  // (see InviteDialog) instead of them clicking an emailed link. This is
+  // also why status is force-set to 'invited' below rather than left to
+  // handle_new_user()'s trigger: that trigger only sees 'invited' when
+  // auth.users.invited_at is set, which only inviteUserByEmail() does —
+  // createUser() leaves it null, so without the explicit override every
+  // admin-created account would default to 'pending' like a self-signup.
+  const tempPassword = generateTempPassword();
   const adminClient = createAdminClient();
-  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(parsed.data.email, {
-    data: { full_name: parsed.data.fullName },
+  const { data, error } = await adminClient.auth.admin.createUser({
+    email: parsed.data.email,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: { full_name: parsed.data.fullName },
   });
 
   if (error || !data.user) {
-    return { ok: false, error: error?.message ?? "Could not send invite." };
+    return { ok: false, error: error?.message ?? "Could not create the account." };
   }
 
   // handle_new_user() already created a default 'student' profile row for
@@ -229,7 +253,34 @@ export async function inviteMember(
   }
 
   refresh();
-  return { ok: true };
+  return { ok: true, data: { tempPassword } };
+}
+
+// members.edit is 'admin'-only for someone else's row (see the Permissions
+// matrix — administrative doesn't hold this permission at all), which is
+// what makes this admin-only too: an administrative can invite into their
+// own circle, but can't reset a password after the fact, the same
+// asymmetry updateMemberProfile already has.
+export async function resetMemberPassword(input: unknown): Promise<ActionResult<{ tempPassword: string }>> {
+  const parsed = resetMemberPasswordSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const actor = await requirePermission("members.edit", { profileId: parsed.data.profileId });
+  if (!actor.ok) return actor;
+
+  const tempPassword = generateTempPassword();
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.updateUserById(parsed.data.profileId, {
+    password: tempPassword,
+  });
+
+  if (error) {
+    return { ok: false, error: "Could not reset the password." };
+  }
+
+  return { ok: true, data: { tempPassword } };
 }
 
 // members.edit is 'own' for student and unavailable to administrative (see

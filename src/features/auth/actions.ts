@@ -47,7 +47,17 @@ export async function signInWithPassword(
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
 
   if (error) {
-    return { ok: false, error: "Incorrect email or password." };
+    // An admin-invited account never gets a password set during onboarding
+    // — accepting the invite email signs them in directly, and
+    // completeProfile() only asks for phone/hosting info, never a
+    // password. So a wrong-password error here is genuinely ambiguous
+    // between "mistyped it" and "never set one" — the hint steers them to
+    // the OTP flow (a few lines below this form) without revealing which
+    // case it actually was, since that itself is account-existence info.
+    return {
+      ok: false,
+      error: "Incorrect email or password. Invited or never set a password? Use \"Sign in with a code\" below instead.",
+    };
   }
 
   redirect("/dashboard");
@@ -224,6 +234,16 @@ export async function signUp(
       actor_email: parsed.data.email,
       context: { source: "app", ip },
     });
+  }
+
+  // signUp() returns a live session immediately when the Supabase project
+  // has email confirmation turned off (data.session is null when it's on —
+  // there's nothing to sign them into yet until they click the confirmation
+  // link). Branching on this instead of a hardcoded assumption means the
+  // signup flow adapts automatically to that dashboard setting either way,
+  // with no code change needed if it's flipped later.
+  if (data.session) {
+    redirect("/complete-profile");
   }
 
   return { ok: true };

@@ -1,9 +1,14 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
 
-export async function listViewerCircles() {
+// Called from the events/circle-settings pages, the circle selector, and
+// the app shell within the same render — cache() so that's one query per
+// request instead of one per call site (RLS already scopes the rows to
+// what the viewer can see, so the result is identical across call sites).
+export const listViewerCircles = cache(async () => {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("circles")
@@ -11,7 +16,7 @@ export async function listViewerCircles() {
     .order("name");
   if (error) throw error;
   return data;
-}
+});
 
 // Events for a circle's calendar = events it owns ∪ events it's been
 // invited to via event_circles. RLS already scopes both queries to circles

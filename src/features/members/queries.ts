@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import type { ProfileStatus, UserRole } from "@/lib/database.types";
 
@@ -63,11 +64,15 @@ export async function getMember(id: string) {
   return data;
 }
 
-export async function getViewerProfile() {
+// Wrapped in React's cache() for the same reason getCachedUser() is (see
+// that function's comment) — nearly every page and layout in the (app)
+// shell calls this at least once, and without memoization each call was
+// its own round trip to the same row within a single request/render.
+export const getViewerProfile = cache(async () => {
   const supabase = await createClient();
   const user = await getCachedUser();
   if (!user) return null;
 
   const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
   return data;
-}
+});

@@ -3,6 +3,7 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { IconCircle } from "@/components/ui/icon-circle";
+import { SuccessCheckmark } from "@/components/ui/success-checkmark";
 
 // Wraps sonner rather than building a toast primitive from scratch — but
 // every visual and icon choice is ours: sonner's own icon set is swapped
@@ -18,7 +19,7 @@ export function Toaster(props: ToasterProps) {
       icons={{
         success: (
           <IconCircle tone="success" size="sm">
-            <Icon name="check_circle" size={16} filled />
+            <SuccessCheckmark size={14} />
           </IconCircle>
         ),
         error: (

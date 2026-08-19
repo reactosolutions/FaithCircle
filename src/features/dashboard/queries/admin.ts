@@ -5,14 +5,24 @@ export async function getAdminDashboardData() {
   const now = new Date().toISOString();
   const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
+  // Each status count is its own HEAD request (zero row bytes, just a
+  // count header) rather than fetching every profile's status column and
+  // tallying client-side — the dashboard only ever needs these four
+  // numbers, never the rows themselves.
   const [
-    { data: profileStatuses },
+    { count: activeCount },
+    { count: invitedCount },
+    { count: inactiveCount },
+    { count: pendingCount },
     { count: circleCount },
     { count: upcomingEventCount },
     { count: pendingJoinRequestCount },
     { count: recentAuditCount },
   ] = await Promise.all([
-    supabase.from("profiles").select("status"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "invited"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "inactive"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
     supabase.from("circles").select("id", { count: "exact", head: true }),
     supabase
       .from("events")
@@ -29,10 +39,12 @@ export async function getAdminDashboardData() {
       .gte("occurred_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
   ]);
 
-  const memberCounts = { active: 0, invited: 0, inactive: 0, pending: 0 };
-  for (const row of profileStatuses ?? []) {
-    if (row.status in memberCounts) memberCounts[row.status as keyof typeof memberCounts] += 1;
-  }
+  const memberCounts = {
+    active: activeCount ?? 0,
+    invited: invitedCount ?? 0,
+    inactive: inactiveCount ?? 0,
+    pending: pendingCount ?? 0,
+  };
 
   return {
     memberCounts,
@@ -52,10 +64,22 @@ export async function getAdminChartsData() {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1);
 
-  const [{ data: profiles }, { data: circles }, { data: events }] = await Promise.all([
-    supabase.from("profiles").select("created_at, role"),
+  const [
+    { data: profiles },
+    { data: circles },
+    { data: events },
+    { count: adminRoleCount },
+    { count: administrativeRoleCount },
+    { count: studentRoleCount },
+  ] = await Promise.all([
+    // Only created_at — role distribution comes from the head-counts below
+    // instead of tallying a role column fetched alongside it.
+    supabase.from("profiles").select("created_at"),
     supabase.from("circles").select("id, name"),
     supabase.from("events").select("starts_at, format").gte("starts_at", sixMonthsAgo.toISOString()),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "admin"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "administrative"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
   ]);
 
   // Growth — cumulative signups by month. Approximated from profiles.created_at
@@ -78,18 +102,26 @@ export async function getAdminChartsData() {
     return { label: month.label, value: count };
   });
 
-  // Role distribution
-  const roleCounts = { admin: 0, administrative: 0, student: 0 };
-  for (const p of profiles ?? []) {
-    if (p.role in roleCounts) roleCounts[p.role as keyof typeof roleCounts] += 1;
-  }
+  const roleCounts = {
+    admin: adminRoleCount ?? 0,
+    administrative: administrativeRoleCount ?? 0,
+    student: studentRoleCount ?? 0,
+  };
 
   // Circle comparison — attendance % per circle, batched (not one round
-  // trip per circle) since this loop was the dashboard's biggest N+1.
+  // trip per circle) since this loop was the dashboard's biggest N+1. Bounded
+  // to the same 6-month window as the rest of this page's charts — an
+  // org running for a couple of years would otherwise pull its entire
+  // attendance history on every dashboard load for a chart that only ever
+  // shows one number per circle.
   const circleIds = (circles ?? []).map((c) => c.id);
   const { data: allCircleEvents } =
     circleIds.length > 0
-      ? await supabase.from("events").select("id, circle_id").in("circle_id", circleIds)
+      ? await supabase
+          .from("events")
+          .select("id, circle_id")
+          .in("circle_id", circleIds)
+          .gte("starts_at", sixMonthsAgo.toISOString())
       : { data: [] };
   const eventIdsByCircle = new Map<string, string[]>();
   for (const event of allCircleEvents ?? []) {
