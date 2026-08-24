@@ -10,7 +10,7 @@ import { notifyUsers } from "@/lib/notifications";
 import type { ActionResult } from "@/lib/action-result";
 import type { AttendMode, EventFormat, EventRecurrence } from "@/lib/database.types";
 import { CIRCLE_TIME_ZONE } from "./format";
-import { createEventSchema, rsvpSchema } from "./schema";
+import { createEventSchema, editEventSchema, rsvpSchema } from "./schema";
 
 function nextOccurrenceStarts(startsAt: Date, recurrence: EventRecurrence, count: number) {
   const step = (date: Date) => {
@@ -184,6 +184,175 @@ export async function createEvent(
 
   refresh();
   redirect(`/events/${created.id}`);
+}
+
+// Edits an existing event. `scope` decides which rows in a recurring
+// series get the submitted field values (see editEventSchema's own
+// comment) — mirrors the familiar "this event / this and following /
+// all events" choice from mainstream calendar apps:
+//   - "this": only the edited row.
+//   - "upcoming": every row in the series (root + parent_event_id
+//     children) whose starts_at is on/after the edited row's original
+//     starts_at, this row included.
+//   - "series": every row in the series, past occurrences included.
+// Every affected row is shifted by the same starts_at delta the edit
+// applied to the one being edited, so each occurrence keeps its own
+// date/time relationship to the others (moving a weekly meeting an hour
+// later shifts every occurrence an hour later, not onto one shared
+// instant) — and gets the same non-time field values (title, location,
+// meeting link, audience, ...).
+export async function updateEvent(
+  _prevState: ActionResult | undefined,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = editEventSchema.safeParse({
+    eventId: formData.get("eventId"),
+    scope: formData.get("scope"),
+    title: formData.get("title"),
+    description: formData.get("description"),
+    startsAt: formData.get("startsAt"),
+    durationMinutes: formData.get("durationMinutes"),
+    format: formData.get("format"),
+    hostId: formData.get("hostId"),
+    address: formData.get("address"),
+    inPersonCapacity: formData.get("inPersonCapacity"),
+    meetUrl: formData.get("meetUrl"),
+    meetProvider: formData.get("meetProvider"),
+    meetNotes: formData.get("meetNotes"),
+    audience: formData.get("audience"),
+    extraCircleIds: formData.get("extraCircleIds"),
+    inviteeIds: formData.get("inviteeIds"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  // Same two-step lookup-then-gate as saveAttendance/createEvent: resolve
+  // the event's circle before requirePermission() can evaluate the
+  // circle-scoped permission, then let that call be the real gate.
+  const lookupClient = await createClient();
+  const { data: current } = await lookupClient
+    .from("events")
+    .select("id, circle_id, starts_at, parent_event_id")
+    .eq("id", parsed.data.eventId)
+    .single();
+  if (!current) {
+    return { ok: false, error: "That meeting no longer exists." };
+  }
+
+  const actor = await requirePermission("events.edit", { circleId: current.circle_id });
+  if (!actor.ok) return actor;
+
+  const newStartsAt = fromZonedTime(parsed.data.startsAt, CIRCLE_TIME_ZONE);
+  if (Number.isNaN(newStartsAt.getTime())) {
+    return { ok: false, error: "That date and time isn't valid." };
+  }
+  const durationMs = parsed.data.durationMinutes * 60_000;
+  const deltaMs = newStartsAt.getTime() - new Date(current.starts_at).getTime();
+
+  let targets: { id: string; starts_at: string }[];
+  if (parsed.data.scope === "this") {
+    targets = [{ id: current.id, starts_at: current.starts_at }];
+  } else {
+    const rootId = current.parent_event_id ?? current.id;
+    const { data: seriesRows, error: seriesError } = await actor.supabase
+      .from("events")
+      .select("id, starts_at")
+      .or(`id.eq.${rootId},parent_event_id.eq.${rootId}`);
+    if (seriesError) {
+      return { ok: false, error: "Could not look up this meeting's series." };
+    }
+    targets =
+      parsed.data.scope === "upcoming"
+        ? (seriesRows ?? []).filter((row) => row.starts_at >= current.starts_at)
+        : (seriesRows ?? []);
+  }
+
+  const fieldPayload = {
+    title: parsed.data.title,
+    description: parsed.data.description ?? null,
+    format: parsed.data.format,
+    host_id: parsed.data.format === "online" ? null : (parsed.data.hostId ?? null),
+    address: parsed.data.format === "online" ? null : (parsed.data.address ?? null),
+    in_person_capacity: parsed.data.format === "online" ? null : (parsed.data.inPersonCapacity ?? null),
+    meet_url: parsed.data.format === "in_person" ? null : (parsed.data.meetUrl ?? null),
+    meet_provider: parsed.data.format === "in_person" ? null : (parsed.data.meetProvider ?? null),
+    meet_notes: parsed.data.format === "in_person" ? null : (parsed.data.meetNotes ?? null),
+    audience: parsed.data.audience,
+  };
+
+  // Individual per-row updates, not a bulk upsert — each occurrence needs
+  // its own delta-shifted starts_at/ends_at, and update() (unlike upsert)
+  // never risks tripping a NOT NULL check on a column this payload doesn't
+  // touch (circle_id, recurrence, ...).
+  const updateResults = await Promise.all(
+    targets.map((target) => {
+      const start = new Date(new Date(target.starts_at).getTime() + deltaMs);
+      return actor.supabase
+        .from("events")
+        .update({
+          ...fieldPayload,
+          starts_at: start.toISOString(),
+          ends_at: new Date(start.getTime() + durationMs).toISOString(),
+        })
+        .eq("id", target.id);
+    }),
+  );
+  if (updateResults.some((result) => result.error)) {
+    return { ok: false, error: "Could not save changes." };
+  }
+
+  // Audience replace, not merge — the form always submits the complete
+  // intended set of extra circles/invitees, so every affected occurrence's
+  // event_circles/event_invitees rows are swapped to match exactly. The
+  // owning circle's own event_circles row (circle_id = current.circle_id)
+  // is never touched — that one isn't part of the "extra" set being edited.
+  const targetIds = targets.map((t) => t.id);
+  const { error: deleteCirclesError } = await actor.supabase
+    .from("event_circles")
+    .delete()
+    .in("event_id", targetIds)
+    .neq("circle_id", current.circle_id);
+  if (deleteCirclesError) {
+    return { ok: false, error: "Meeting saved, but its invited circles could not be updated." };
+  }
+  if (parsed.data.extraCircleIds.length > 0) {
+    const circleRows = targetIds.flatMap((eventId) =>
+      parsed.data.extraCircleIds.map((circleId) => ({ event_id: eventId, circle_id: circleId })),
+    );
+    const { error: circleInviteError } = await actor.supabase
+      .from("event_circles")
+      .upsert(circleRows, { onConflict: "event_id,circle_id" });
+    if (circleInviteError) {
+      return { ok: false, error: "Meeting saved, but its invited circles could not be updated." };
+    }
+  }
+
+  const { error: deleteInviteesError } = await actor.supabase
+    .from("event_invitees")
+    .delete()
+    .in("event_id", targetIds);
+  if (deleteInviteesError) {
+    return { ok: false, error: "Meeting saved, but its invitees could not be updated." };
+  }
+  if (parsed.data.inviteeIds.length > 0) {
+    const inviteeRows = targetIds.flatMap((eventId) =>
+      parsed.data.inviteeIds.map((profileId) => ({
+        event_id: eventId,
+        profile_id: profileId,
+        added_by: actor.userId,
+      })),
+    );
+    const { error: inviteeError } = await actor.supabase
+      .from("event_invitees")
+      .upsert(inviteeRows, { onConflict: "event_id,profile_id" });
+    if (inviteeError) {
+      return { ok: false, error: "Meeting saved, but its invitees could not be updated." };
+    }
+  }
+
+  refresh();
+  return { ok: true };
 }
 
 // A single-format event only has one valid attend_mode — force it rather

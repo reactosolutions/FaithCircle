@@ -10,6 +10,7 @@ export const NOTIFICATION_TYPES = [
   "feedback_received",
   "attendance_recorded",
   "role_changed",
+  "new_signup",
 ] as const;
 
 export function useNotificationTypeLabel(): Record<(typeof NOTIFICATION_TYPES)[number], string> {
@@ -23,6 +24,7 @@ export function useNotificationTypeLabel(): Record<(typeof NOTIFICATION_TYPES)[n
     feedback_received: t("notifyFeedbackReceived"),
     attendance_recorded: t("notifyAttendanceRecorded"),
     role_changed: t("notifyRoleChanged"),
+    new_signup: t("notifyNewSignup"),
   };
 }
 

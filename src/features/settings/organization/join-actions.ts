@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUsers, listAdminProfileIds } from "@/lib/notifications";
 import type { ActionResult } from "@/lib/action-result";
 import { submitJoinRequestSchema } from "./join-schema";
 
@@ -44,6 +45,13 @@ export async function submitJoinRequest(
   if (error) {
     return { ok: false, error: "Could not submit your request." };
   }
+
+  const adminIds = await listAdminProfileIds();
+  await notifyUsers(adminIds, "new_signup", {
+    kind: "join_request",
+    fullName: parsed.data.fullName,
+    email: parsed.data.email,
+  });
 
   return { ok: true };
 }

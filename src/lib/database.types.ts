@@ -59,6 +59,7 @@ export interface NotificationPrefs {
   feedback_received: { in_app: boolean; email: boolean };
   attendance_recorded: { in_app: boolean; email: boolean };
   role_changed: { in_app: boolean; email: boolean };
+  new_signup: { in_app: boolean; email: boolean };
 }
 
 export interface Database {

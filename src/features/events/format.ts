@@ -26,6 +26,14 @@ export function eventDayKey(iso: string) {
   return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "yyyy-MM-dd");
 }
 
+// "yyyy-MM-ddTHH:mm" in the circle's timezone — pre-fills a <input
+// type="datetime-local"> with an existing event's stored instant (edit
+// forms), the counterpart to ScheduleEventDialog's create-side
+// `fromZonedTime(value, CIRCLE_TIME_ZONE)`.
+export function toDateTimeLocalValue(iso: string) {
+  return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "yyyy-MM-dd'T'HH:mm");
+}
+
 // The calendar grid's "which month/week am I looking at" anchor is a pure
 // calendar date with no instant/timezone attached — it's not an event
 // timestamp. Parsed via the local Date constructor (not `new Date(string)`,
@@ -88,4 +96,14 @@ export function minutesUntilJoinOpens(startsAt: string, now = new Date()) {
   const start = new Date(startsAt);
   const opensAt = new Date(start.getTime() - JOIN_WINDOW_LEAD_MINUTES * 60 * 1000);
   return Math.max(0, Math.ceil((opensAt.getTime() - now.getTime()) / 60_000));
+}
+
+// Attendance (leader-recorded or self-check-in) only opens once the
+// meeting's own day has arrived, in the circle's timezone — comparing day
+// keys rather than instants so it flips at Riyadh midnight, not whenever
+// the marker's browser happens to think "today" is. No future-dated
+// attendance, deliberately: the whole point is a record of who actually
+// showed up, not a prediction.
+export function isAttendanceOpen(startsAt: string, now = new Date()) {
+  return eventDayKey(now.toISOString()) >= eventDayKey(startsAt);
 }

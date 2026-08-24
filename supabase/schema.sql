@@ -141,7 +141,8 @@ alter table public.profiles add column if not exists notification_prefs jsonb no
   "assignment_due_soon": {"in_app": true, "email": false},
   "feedback_received": {"in_app": true, "email": true},
   "attendance_recorded": {"in_app": true, "email": false},
-  "role_changed": {"in_app": true, "email": true}
+  "role_changed": {"in_app": true, "email": true},
+  "new_signup": {"in_app": true, "email": true}
 }'::jsonb;
 
 -- Backfill for rows created before "role_changed" existed — jsonb defaults
@@ -151,6 +152,13 @@ alter table public.profiles add column if not exists notification_prefs jsonb no
 update public.profiles
 set notification_prefs = notification_prefs || '{"role_changed": {"in_app": true, "email": true}}'::jsonb
 where not (notification_prefs ? 'role_changed');
+
+-- Same backfill, for "new_signup" — notifyUsers() only ever targets admins
+-- with this type (see notifyUsers() call sites in signUp/submitJoinRequest),
+-- but every profile still carries the same NotificationPrefs shape.
+update public.profiles
+set notification_prefs = notification_prefs || '{"new_signup": {"in_app": true, "email": true}}'::jsonb
+where not (notification_prefs ? 'new_signup');
 alter table public.profiles add column if not exists reminder_lead_time public.reminder_lead_time not null default '1d';
 alter table public.profiles add column if not exists quiet_hours_start time;
 alter table public.profiles add column if not exists quiet_hours_end time;

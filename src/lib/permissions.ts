@@ -1,4 +1,6 @@
+import { unstable_cache } from "next/cache";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { PermissionKey, PermissionScope, UserRole } from "@/lib/database.types";
 
 type RequirePermissionResult =
@@ -41,22 +43,38 @@ export async function requirePermission(
 }
 
 // Feeds usePermissions()'s client-side mirror (see
-// src/components/app-shell/permissions-context.tsx) — fetched once in
-// (app)/layout.tsx per request. Read-only reference data (role_permissions'
-// RLS allows any authenticated user to select it), so no permission check
-// needed here.
-export async function getPermissionMapForRole(
-  role: UserRole,
-): Promise<Partial<Record<PermissionKey, PermissionScope>>> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("role_permissions")
-    .select("permission_key, scope")
-    .eq("role", role);
+// src/components/app-shell/permissions-context.tsx) — fetched in
+// (app)/layout.tsx on every single navigation (layouts re-run their data
+// fetching on a full page load), which made this one of the most-repeated
+// queries in the app for no reason: role_permissions is seeded, read-only
+// reference data (see CLAUDE.md's Permissions section) that's never edited
+// through the app, so it's the same 3 possible results (one per role)
+// forever. Cached here instead of refetched every time.
+//
+// Uses the admin client, not the per-request cookie-bound one:
+// unstable_cache can't wrap a function that reads cookies (Next.js forbids
+// it), which the regular client touches internally to resolve auth/RLS.
+// The admin client has no such dependency, and bypassing RLS here is safe
+// — the original comment's point still holds (role_permissions' RLS
+// already allows any authenticated user to select it), this just reads
+// the same rows a different way.
+export const getPermissionMapForRole = unstable_cache(
+  async (role: UserRole): Promise<Partial<Record<PermissionKey, PermissionScope>>> => {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("role_permissions")
+      .select("permission_key, scope")
+      .eq("role", role);
 
-  const map: Partial<Record<PermissionKey, PermissionScope>> = {};
-  for (const row of data ?? []) {
-    map[row.permission_key as PermissionKey] = row.scope;
-  }
-  return map;
-}
+    const map: Partial<Record<PermissionKey, PermissionScope>> = {};
+    for (const row of data ?? []) {
+      map[row.permission_key as PermissionKey] = row.scope;
+    }
+    return map;
+  },
+  ["role-permissions-map"],
+  // No admin UI ever writes to role_permissions, so a long revalidate
+  // window is just a safety net for a direct SQL edit, not a freshness
+  // requirement.
+  { revalidate: 3600 },
+);

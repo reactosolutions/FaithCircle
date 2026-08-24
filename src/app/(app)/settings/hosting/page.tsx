@@ -14,13 +14,17 @@ export default async function HostingSettingsPage() {
     redirect("/sign-in");
   }
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  // Independent of each other (blackout dates are scoped to the signed-in
+  // user internally, not to `profile`) — one parallel round trip instead
+  // of two sequential ones.
+  const [{ data: profile }, blackoutDates, t] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    listOwnBlackoutDates(),
+    getTranslations("Settings"),
+  ]);
   if (!profile) {
     redirect("/sign-in");
   }
-
-  const blackoutDates = await listOwnBlackoutDates();
-  const t = await getTranslations("Settings");
 
   return (
     <div className="flex flex-col gap-6">

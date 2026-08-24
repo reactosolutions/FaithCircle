@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { notifyUsers } from "@/lib/notifications";
+import { isAttendanceOpen } from "@/features/events/format";
 import type { ActionResult } from "@/lib/action-result";
 import { recordOwnAttendanceSchema, saveAttendanceSchema } from "./schema";
 
@@ -20,7 +21,7 @@ export async function saveAttendance(input: unknown): Promise<ActionResult> {
   const lookupClient = await createClient();
   const { data: event } = await lookupClient
     .from("events")
-    .select("circle_id")
+    .select("circle_id, starts_at")
     .eq("id", parsed.data.eventId)
     .single();
   if (!event) {
@@ -29,6 +30,12 @@ export async function saveAttendance(input: unknown): Promise<ActionResult> {
 
   const actor = await requirePermission("attendance.record", { circleId: event.circle_id });
   if (!actor.ok) return actor;
+
+  // No future-dated attendance — see isAttendanceOpen's own comment. Checked
+  // here (not just hidden in the UI) since this is the actual write path.
+  if (!isAttendanceOpen(event.starts_at)) {
+    return { ok: false, error: "Attendance can't be recorded before the day of the meeting." };
+  }
 
   const rows = parsed.data.entries.map((entry) => ({
     event_id: parsed.data.eventId,
@@ -86,6 +93,21 @@ export async function recordOwnAttendance(input: unknown): Promise<ActionResult>
   const actor = await requirePermission("attendance.record", { profileId: user.id });
   if (!actor.ok) return actor;
 
+  const { data: event } = await actor.supabase
+    .from("events")
+    .select("title, circle_id, starts_at")
+    .eq("id", parsed.data.eventId)
+    .single();
+  if (!event) {
+    return { ok: false, error: "That meeting no longer exists." };
+  }
+
+  // No future-dated attendance — see isAttendanceOpen's own comment. Checked
+  // here (not just hidden in the UI) since this is the actual write path.
+  if (!isAttendanceOpen(event.starts_at)) {
+    return { ok: false, error: "You can mark your attendance starting the day of the meeting." };
+  }
+
   const { error } = await actor.supabase.from("attendance").upsert(
     {
       event_id: parsed.data.eventId,
@@ -105,14 +127,8 @@ export async function recordOwnAttendance(input: unknown): Promise<ActionResult>
   // Let the circle's leaders know a student self-checked in — the same
   // notification type saveAttendance already sends the other direction
   // (leader marks a student's attendance), just reversed.
-  const supabase = await createClient();
-  const { data: event } = await supabase
-    .from("events")
-    .select("title, circle_id")
-    .eq("id", parsed.data.eventId)
-    .single();
-  if (event?.circle_id) {
-    const { data: circleLeaderRows } = await supabase
+  if (event.circle_id) {
+    const { data: circleLeaderRows } = await actor.supabase
       .from("circle_leaders")
       .select("profile_id")
       .eq("circle_id", event.circle_id);

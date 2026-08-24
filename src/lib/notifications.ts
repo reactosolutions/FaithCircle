@@ -36,3 +36,12 @@ export async function notifyUsers(
   if (rows.length === 0) return;
   await admin.from("notifications").insert(rows);
 }
+
+// Every admin's profile id — used to notify admins about things nobody
+// else can act on (a new signup or join request awaiting approval), so
+// callers don't each hand-roll the same `.eq("role", "admin")` query.
+export async function listAdminProfileIds(): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("profiles").select("id").eq("role", "admin");
+  return (data ?? []).map((row) => row.id);
+}

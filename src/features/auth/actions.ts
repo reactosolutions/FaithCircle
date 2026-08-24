@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { notifyUsers, listAdminProfileIds } from "@/lib/notifications";
 import {
   completeProfileSchema,
   forgotPasswordSchema,
@@ -229,6 +230,14 @@ export async function signUp(
       actor_email: parsed.data.email,
       context: { source: "app", ip },
     });
+
+    const adminIds = await listAdminProfileIds();
+    await notifyUsers(adminIds, "new_signup", {
+      kind: "signup",
+      profileId: data.user.id,
+      fullName: parsed.data.fullName,
+      email: parsed.data.email,
+    });
   }
 
   // signUp() returns a live session immediately when the Supabase project
@@ -318,7 +327,18 @@ export async function completeProfile(
     }
   }
 
-  const { error } = await supabase
+  // The admin client, not the caller's own session — profiles' trigger
+  // (trg_prevent_self_role_escalation) reverts any status change made by a
+  // non-admin's own auth.uid(), which would otherwise silently undo the
+  // 'invited'→'active' and open-invite-code→'active' transitions this step
+  // exists to make. That guard only means to stop a student handing itself
+  // a different status through the normal self-update policy; this Server
+  // Action already computed nextStatus itself from trusted server-side
+  // checks above, so it's the same "trusted server-side context" the
+  // trigger's own comment carves out (auth.uid() reads null under the
+  // service role, same as the circle lookup above).
+  const adminClient = createAdminClient();
+  const { error } = await adminClient
     .from("profiles")
     .update({
       phone: parsed.data.phone ?? null,
@@ -333,7 +353,6 @@ export async function completeProfile(
   }
 
   if (joinedCircleId) {
-    const adminClient = createAdminClient();
     await adminClient
       .from("circle_members")
       .upsert(

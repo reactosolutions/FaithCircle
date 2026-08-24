@@ -57,6 +57,7 @@ export default async function AttendanceSheetPage({
           <AttendanceSheet
             eventId={event.id}
             format={event.format}
+            startsAt={event.starts_at}
             members={members.map((member) => ({
               id: member.id,
               fullName: member.fullName,

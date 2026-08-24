@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { getEvent } from "@/features/events/queries";
+import {
+  getCircleMemberCount,
+  getEvent,
+  listAllCirclesWithCounts,
+  listHostCandidates,
+  listInviteCandidates,
+} from "@/features/events/queries";
 import { getCachedUser } from "@/lib/supabase/server";
 import { getViewerProfile } from "@/features/members/queries";
 import {
@@ -14,8 +20,9 @@ import { RsvpControl } from "@/features/events/components/rsvp-control";
 import { SelfAttendanceControl } from "@/features/attendance/components/self-attendance-control";
 import { FormatBadge } from "@/features/events/components/format-badge";
 import { AttendeeList } from "@/features/events/components/attendee-list";
+import { EditEventDialog } from "@/features/events/components/edit-event-dialog";
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { hijri } from "@/lib/format";
@@ -64,6 +71,20 @@ export default async function EventDetailPage({
   const overCapacity =
     event.in_person_capacity != null && inPersonGoing > event.in_person_capacity;
 
+  // Edit-form data (host/invite pickers, other circles) is only ever used
+  // by the EditEventDialog rendered below for a leader — skip the extra
+  // round trips entirely for a plain member viewing the page.
+  const canEdit = isLeader && !!circle;
+  const [hosts, inviteCandidates, allCirclesWithCounts, ownCircleMemberCount] =
+    isLeader && circle
+      ? await Promise.all([
+          listHostCandidates(circle.id),
+          listInviteCandidates(circle.id),
+          listAllCirclesWithCounts(),
+          getCircleMemberCount(circle.id),
+        ])
+      : [[], [], [], 0];
+
   return (
     <div className="flex max-w-xl flex-col gap-6">
       <Card>
@@ -73,6 +94,21 @@ export default async function EventDetailPage({
             <FormatBadge format={event.format} />
           </div>
           {circle && <p className="text-sm text-muted-foreground">{circle.name}</p>}
+          {canEdit && circle && (
+            <CardAction>
+              <EditEventDialog
+                event={event}
+                hosts={hosts}
+                inviteCandidates={inviteCandidates}
+                otherCircles={allCirclesWithCounts.filter((c) => c.id !== circle.id)}
+                ownCircleMemberCount={ownCircleMemberCount}
+                initialExtraCircleIds={invitedCircles.map((c) => c.circleId).filter((id) => id !== circle.id)}
+                initialInviteeIds={invitees.map((i) => i.profileId)}
+                triggerIcon="edit"
+                triggerVariant="outline"
+              />
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1 text-sm">
@@ -154,6 +190,7 @@ export default async function EventDetailPage({
               format={event.format}
               initialStatus={ownAttendance?.status ?? null}
               initialMode={ownAttendance?.mode ?? null}
+              startsAt={event.starts_at}
             />
           )}
         </CardContent>

@@ -5,24 +5,21 @@ export async function getAdminDashboardData() {
   const now = new Date().toISOString();
   const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Each status count is its own HEAD request (zero row bytes, just a
-  // count header) rather than fetching every profile's status column and
-  // tallying client-side — the dashboard only ever needs these four
-  // numbers, never the rows themselves.
+  // One profiles fetch (status only) tallied in memory, instead of four
+  // separate per-status HEAD requests to the same table — this app's whole
+  // membership is a single community, not a multi-tenant SaaS, so pulling
+  // every row once is fewer round trips than four HEAD counts. This was
+  // the dashboard's main source of redundant round trips (profiles was
+  // queried 8 times total across this file before consolidating here and
+  // in getAdminChartsData below).
   const [
-    { count: activeCount },
-    { count: invitedCount },
-    { count: inactiveCount },
-    { count: pendingCount },
+    { data: profiles },
     { count: circleCount },
     { count: upcomingEventCount },
     { count: pendingJoinRequestCount },
     { count: recentAuditCount },
   ] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "active"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "invited"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "inactive"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("profiles").select("status"),
     supabase.from("circles").select("id", { count: "exact", head: true }),
     supabase
       .from("events")
@@ -39,12 +36,12 @@ export async function getAdminDashboardData() {
       .gte("occurred_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
   ]);
 
-  const memberCounts = {
-    active: activeCount ?? 0,
-    invited: invitedCount ?? 0,
-    inactive: inactiveCount ?? 0,
-    pending: pendingCount ?? 0,
-  };
+  const memberCounts = { active: 0, invited: 0, inactive: 0, pending: 0 };
+  for (const profile of profiles ?? []) {
+    if (profile.status in memberCounts) {
+      memberCounts[profile.status as keyof typeof memberCounts] += 1;
+    }
+  }
 
   return {
     memberCounts,
@@ -52,6 +49,122 @@ export async function getAdminDashboardData() {
     upcomingEventCount: upcomingEventCount ?? 0,
     pendingJoinRequestCount: pendingJoinRequestCount ?? 0,
     recentAuditCount: recentAuditCount ?? 0,
+  };
+}
+
+// Preview rows for the admin dashboard's "Needs your approval" card: the
+// oldest few self-service/org-invite-link signups (profiles.status =
+// 'pending') and org-wide join requests, combined into one feed. The
+// Members page (status=pending filter) and Settings > Organization remain
+// the actual places to act — this is a read-only preview so the count on
+// the dashboard isn't just a number with nowhere obvious to look.
+export async function getPendingApprovals(limit = 5) {
+  const supabase = await createClient();
+  const [{ data: pendingProfiles }, { data: joinRequests }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(limit),
+    supabase
+      .from("join_requests")
+      .select("id, full_name, email, requested_at")
+      .eq("status", "pending")
+      .order("requested_at", { ascending: true })
+      .limit(limit),
+  ]);
+
+  const combined = [
+    ...(pendingProfiles ?? []).map((row) => ({
+      kind: "signup" as const,
+      id: row.id,
+      fullName: row.full_name,
+      email: row.email,
+      at: row.created_at,
+    })),
+    ...(joinRequests ?? []).map((row) => ({
+      kind: "join_request" as const,
+      id: row.id,
+      fullName: row.full_name,
+      email: row.email,
+      at: row.requested_at,
+    })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+
+  return combined.slice(0, limit);
+}
+
+// Org-wide "what's coming up / what just came in" preview for the admin
+// dashboard — the next few meetings across every circle, and the most
+// recently submitted homework across every circle, each capped to `limit`.
+// Admin already sees every row here unfiltered (submissions.view and
+// events.view are both 'all' scope for admin), unlike the leader/student
+// dashboards which scope to circles the viewer is actually in.
+export async function getAdminRecentActivity(limit = 6) {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const [{ data: upcomingEvents }, { data: recentSubmissions }] = await Promise.all([
+    supabase
+      .from("events")
+      .select("id, title, starts_at, format")
+      .gte("starts_at", now)
+      .order("starts_at", { ascending: true })
+      .limit(limit),
+    // submitted_at is null for drafts — never actually submitted, so not
+    // "recent activity" in the sense this list means.
+    supabase
+      .from("submissions")
+      .select("id, assignment_id, profile_id, submitted_at")
+      .not("submitted_at", "is", null)
+      .order("submitted_at", { ascending: false })
+      .limit(limit),
+  ]);
+
+  const assignmentIds = Array.from(new Set((recentSubmissions ?? []).map((s) => s.assignment_id)));
+  const profileIds = Array.from(new Set((recentSubmissions ?? []).map((s) => s.profile_id)));
+
+  const [{ data: assignments }, { data: profiles }] = await Promise.all([
+    assignmentIds.length > 0
+      ? supabase.from("assignments").select("id, title, circle_id").in("id", assignmentIds)
+      : Promise.resolve({ data: [] as { id: string; title: string; circle_id: string }[] }),
+    profileIds.length > 0
+      ? supabase.from("profiles").select("id, full_name").in("id", profileIds)
+      : Promise.resolve({ data: [] as { id: string; full_name: string | null }[] }),
+  ]);
+
+  const assignmentById = new Map((assignments ?? []).map((a) => [a.id, a]));
+  const nameByProfile = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+
+  const circleIds = Array.from(new Set((assignments ?? []).map((a) => a.circle_id)));
+  const { data: circles } =
+    circleIds.length > 0
+      ? await supabase.from("circles").select("id, name").in("id", circleIds)
+      : { data: [] as { id: string; name: string }[] };
+  const circleNameById = new Map((circles ?? []).map((c) => [c.id, c.name]));
+
+  const recentSubmissionRows = (recentSubmissions ?? []).flatMap((row) => {
+    const assignment = assignmentById.get(row.assignment_id);
+    // Guards a race, not a real case: the assignment/circle couldn't have
+    // been deleted between the two queries above under normal use, but
+    // dropping an orphaned row here is cheap insurance either way.
+    if (!assignment || !row.submitted_at) return [];
+    return [
+      {
+        id: row.id,
+        assignmentId: row.assignment_id,
+        assignmentTitle: assignment.title,
+        circleName: circleNameById.get(assignment.circle_id) ?? null,
+        memberName: nameByProfile.get(row.profile_id) ?? null,
+        submittedAt: row.submitted_at,
+      },
+    ];
+  });
+
+  return {
+    upcomingEvents: upcomingEvents ?? [],
+    recentSubmissions: recentSubmissionRows,
   };
 }
 
@@ -64,22 +177,13 @@ export async function getAdminChartsData() {
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
   sixMonthsAgo.setDate(1);
 
-  const [
-    { data: profiles },
-    { data: circles },
-    { data: events },
-    { count: adminRoleCount },
-    { count: administrativeRoleCount },
-    { count: studentRoleCount },
-  ] = await Promise.all([
-    // Only created_at — role distribution comes from the head-counts below
-    // instead of tallying a role column fetched alongside it.
-    supabase.from("profiles").select("created_at"),
+  const [{ data: profiles }, { data: circles }, { data: events }] = await Promise.all([
+    // created_at for the growth chart and role for the distribution donut,
+    // fetched together — replaces three separate role HEAD-count round
+    // trips with tallying this one result in memory.
+    supabase.from("profiles").select("created_at, role"),
     supabase.from("circles").select("id, name"),
     supabase.from("events").select("starts_at, format").gte("starts_at", sixMonthsAgo.toISOString()),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "admin"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "administrative"),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "student"),
   ]);
 
   // Growth — cumulative signups by month. Approximated from profiles.created_at
@@ -102,11 +206,12 @@ export async function getAdminChartsData() {
     return { label: month.label, value: count };
   });
 
-  const roleCounts = {
-    admin: adminRoleCount ?? 0,
-    administrative: administrativeRoleCount ?? 0,
-    student: studentRoleCount ?? 0,
-  };
+  const roleCounts = { admin: 0, administrative: 0, student: 0 };
+  for (const profile of profiles ?? []) {
+    if (profile.role in roleCounts) {
+      roleCounts[profile.role as keyof typeof roleCounts] += 1;
+    }
+  }
 
   // Circle comparison — attendance % per circle, batched (not one round
   // trip per circle) since this loop was the dashboard's biggest N+1. Bounded

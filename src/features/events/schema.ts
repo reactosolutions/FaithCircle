@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const EVENT_RECURRENCES = ["none", "weekly", "biweekly", "monthly"] as const;
+export const EVENT_EDIT_SCOPES = ["this", "upcoming", "series"] as const;
 export const RSVP_RESPONSES = ["going", "not_going", "tentative", "no_response"] as const;
 export const EVENT_FORMATS = ["in_person", "online", "hybrid"] as const;
 export const MEET_PROVIDERS = ["google_meet", "zoom", "teams", "other"] as const;
@@ -26,6 +27,42 @@ const idList = z.preprocess((value) => {
   return value.split(",").map((v) => v.trim()).filter(Boolean);
 }, z.array(z.uuid()));
 
+// Shared by createEventSchema and editEventSchema — same three
+// cross-field rules apply whether the meeting is brand new or being
+// edited.
+function refineEventFields(
+  data: {
+    format: (typeof EVENT_FORMATS)[number];
+    meetUrl?: string;
+    audience: (typeof EVENT_AUDIENCES)[number];
+    extraCircleIds: string[];
+    inviteeIds: string[];
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.format !== "in_person" && !data.meetUrl) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["meetUrl"],
+      message: "Online and hybrid meetings need a meeting link.",
+    });
+  }
+  if (data.audience === "multi_circle" && data.extraCircleIds.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["extraCircleIds"],
+      message: "Pick at least one other circle to invite.",
+    });
+  }
+  if (data.audience === "custom" && data.inviteeIds.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["inviteeIds"],
+      message: "Pick at least one person to invite.",
+    });
+  }
+}
+
 export const createEventSchema = z
   .object({
     circleId: z.uuid(),
@@ -48,29 +85,35 @@ export const createEventSchema = z
     extraCircleIds: idList,
     inviteeIds: idList,
   })
-  .superRefine((data, ctx) => {
-    if (data.format !== "in_person" && !data.meetUrl) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["meetUrl"],
-        message: "Online and hybrid meetings need a meeting link.",
-      });
-    }
-    if (data.audience === "multi_circle" && data.extraCircleIds.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["extraCircleIds"],
-        message: "Pick at least one other circle to invite.",
-      });
-    }
-    if (data.audience === "custom" && data.inviteeIds.length === 0) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["inviteeIds"],
-        message: "Pick at least one person to invite.",
-      });
-    }
-  });
+  .superRefine(refineEventFields);
+
+// Editing never changes the recurrence pattern itself (that's what
+// scheduling a new series is for) — scope decides which existing rows this
+// edit's field values get applied to instead. See updateEvent() in
+// actions.ts for what each scope actually does.
+export const editEventSchema = z
+  .object({
+    eventId: z.uuid(),
+    scope: z.enum(EVENT_EDIT_SCOPES),
+    title: z.string().trim().min(1, { error: "Give the meeting a title." }),
+    description: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    startsAt: z.string().min(1, { error: "Pick a date and time." }),
+    durationMinutes: z.coerce.number().int().positive(),
+    format: z.enum(EVENT_FORMATS),
+    hostId: z.preprocess(emptyToUndefined, z.uuid().optional()),
+    address: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    inPersonCapacity: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number().int().positive().optional(),
+    ),
+    meetUrl: z.preprocess(emptyToUndefined, z.url().optional()),
+    meetProvider: z.preprocess(emptyToUndefined, z.enum(MEET_PROVIDERS).optional()),
+    meetNotes: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+    audience: z.enum(EVENT_AUDIENCES),
+    extraCircleIds: idList,
+    inviteeIds: idList,
+  })
+  .superRefine(refineEventFields);
 
 // attendMode is only required from the client on a hybrid event — the
 // action forces it to the event's only valid mode on a single-format event,

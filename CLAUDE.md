@@ -468,8 +468,9 @@ Breakpoints: base <640 (phone), md 768 (tablet), lg 1024+ (desktop).
 
 Navigation
 - Desktop: left sidebar, always visible.
-- Phone: bottom tab bar — Home, Calendar, Homework, Attendance, More. The "More" tab
-  opens a full-page list holding Members, Settings, and admin sections.
+- Phone: bottom tab bar — Home, Calendar, Homework, Attendance (admin/administrative
+  only), Circles, More. The "More" tab opens a full-page list holding Members, Settings,
+  and admin sections.
 - Bottom bar respects env(safe-area-inset-bottom) so it clears the iOS home indicator.
 
 Layout patterns that must change, not shrink

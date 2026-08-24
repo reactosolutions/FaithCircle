@@ -39,12 +39,15 @@ export default async function CircleSettingsPage({
   const circleId =
     params.circleId && circles.some((c) => c.id === params.circleId) ? params.circleId : circles[0].id;
 
-  const circle = await getCircleSettings(circleId);
+  // Independent of each other (both only need circleId) — one parallel
+  // round trip instead of two sequential ones.
+  const [circle, hostCandidates] = await Promise.all([
+    getCircleSettings(circleId),
+    suggestNextHost(circleId),
+  ]);
   if (!circle) {
     notFound();
   }
-
-  const hostCandidates = await suggestNextHost(circleId);
 
   return (
     <div className="flex flex-col gap-6">

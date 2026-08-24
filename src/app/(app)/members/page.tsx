@@ -30,13 +30,17 @@ export default async function MembersPage({
     }),
     canAddMembers ? listViewerCircles() : Promise.resolve([]),
   ]);
-  const administrativeCandidates = isAdmin
-    ? (await listMembers({ role: "administrative", pageSize: 200 })).members.map((m) => ({
-        id: m.id,
-        full_name: m.full_name,
-      }))
-    : [];
-  const phoneById = isAdmin ? await getPhonesByIds(members.map((m) => m.id)) : {};
+  // Neither depends on the other (one needs isAdmin, the other needs
+  // `members` — already resolved above) — one parallel round trip instead
+  // of two sequential ones.
+  const [administrativeCandidates, phoneById] = isAdmin
+    ? await Promise.all([
+        listMembers({ role: "administrative", pageSize: 200 }).then((result) =>
+          result.members.map((m) => ({ id: m.id, full_name: m.full_name })),
+        ),
+        getPhonesByIds(members.map((m) => m.id)),
+      ])
+    : [[], {}];
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (

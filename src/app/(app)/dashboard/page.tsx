@@ -3,9 +3,11 @@ import { createClient, getCachedUser } from "@/lib/supabase/server";
 import {
   getAdminChartsData,
   getAdminDashboardData,
+  getAdminRecentActivity,
   getCircleChartsData,
   getLeaderDashboardData,
   getMemberDashboardData,
+  getPendingApprovals,
   getStudentChartsData,
 } from "@/features/dashboard/queries";
 import { MemberDashboardSection } from "@/features/dashboard/components/member-dashboard-section";
@@ -26,11 +28,16 @@ export default async function DashboardPage() {
   }
 
   if (profile.role === "admin") {
-    const [stats, charts] = await Promise.all([getAdminDashboardData(), getAdminChartsData()]);
+    const [stats, charts, approvals, activity] = await Promise.all([
+      getAdminDashboardData(),
+      getAdminChartsData(),
+      getPendingApprovals(),
+      getAdminRecentActivity(),
+    ]);
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title={t("title")} />
-        <AdminDashboardSection stats={stats} charts={charts} />
+        <AdminDashboardSection stats={stats} charts={charts} approvals={approvals} activity={activity} />
       </div>
     );
   }

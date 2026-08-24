@@ -5,20 +5,24 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
+import { EmptyState } from "@/components/ui/empty-state";
 import { MemberRow } from "./member-row";
 import { useGroupLabel, type RowState, type SheetMember } from "./types";
 import { saveAttendance } from "../../actions";
 import { notifyActionResult } from "@/lib/notify";
+import { isAttendanceOpen } from "@/features/events/format";
 import type { AttendanceStatus, EventFormat } from "@/lib/database.types";
 
 export function AttendanceSheet({
   eventId,
   format,
   members,
+  startsAt,
 }: {
   eventId: string;
   format: EventFormat;
   members: SheetMember[];
+  startsAt: string;
 }) {
   const t = useTranslations("Attendance");
   const groupLabel = useGroupLabel();
@@ -111,6 +115,13 @@ export function AttendanceSheet({
       }
       notifyActionResult(result, t("attendanceSavedToast"));
     });
+  }
+
+  // No future-dated attendance — see isAttendanceOpen's own comment. The
+  // Server Action re-checks this too; this just keeps the roster from
+  // inviting taps that would only bounce.
+  if (!isAttendanceOpen(startsAt)) {
+    return <EmptyState icon="schedule" title={t("attendanceOpensOnMeetingDay")} />;
   }
 
   return (

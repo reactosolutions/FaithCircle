@@ -5,18 +5,32 @@ import { GrowthLineChart } from "@/components/charts/growth-line-chart";
 import { BarWithAverage } from "@/components/charts/bar-with-average";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { StackedAreaChart } from "@/components/charts/stacked-area-chart";
-import type { getAdminChartsData, getAdminDashboardData } from "../queries";
+import { ApprovalsNeededCard } from "./approvals-needed-card";
+import { UpcomingEventsList } from "./upcoming-events-list";
+import { RecentSubmissionsList } from "./recent-submissions-list";
+import type {
+  getAdminChartsData,
+  getAdminDashboardData,
+  getAdminRecentActivity,
+  getPendingApprovals,
+} from "../queries";
 
 export function AdminDashboardSection({
   stats,
   charts,
+  approvals,
+  activity,
 }: {
   stats: Awaited<ReturnType<typeof getAdminDashboardData>>;
   charts: Awaited<ReturnType<typeof getAdminChartsData>>;
+  approvals: Awaited<ReturnType<typeof getPendingApprovals>>;
+  activity: Awaited<ReturnType<typeof getAdminRecentActivity>>;
 }) {
   const t = useTranslations("Dashboard");
   return (
     <div className="flex flex-col gap-6">
+      <ApprovalsNeededCard approvals={approvals} />
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label={t("statActiveMembers")} value={stats.memberCounts.active} href="/members" />
         <StatTile label={t("statInvited")} value={stats.memberCounts.invited} href="/members" />
@@ -36,6 +50,26 @@ export function AdminDashboardSection({
         value={stats.recentAuditCount}
         href="/settings/organization/audit"
       />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("upcomingMeetingsTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <UpcomingEventsList events={activity.upcomingEvents} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("recentSubmissionsTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <RecentSubmissionsList submissions={activity.recentSubmissions} />
+          </CardContent>
+        </Card>
+      </div>
 
       {/* The one dominant hero element this page needs (CLAUDE.md hierarchy
           pass rule 1) — growth is the single most load-bearing admin metric,

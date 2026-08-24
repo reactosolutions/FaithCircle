@@ -27,11 +27,12 @@ export const NAV_ITEMS: NavItem[] = [
   },
   // Available to every role — admin gets the org-wide management view,
   // everyone else a read-only "my circles" view (see circles/page.tsx).
-  // Not `primary`: the bottom tab bar's 5-slot budget (Home/Calendar/
-  // Homework/Attendance/More per CLAUDE.md) is already full for
-  // admin/administrative once Attendance is in it, so this lives under
-  // "More" for everyone rather than only for some roles.
-  { href: "/circles", labelKey: "circles", icon: "group_work" },
+  // `primary` on every role for consistency, even though that leaves
+  // admin/administrative with 6 bottom tabs (5 + More) against a student's
+  // 5 (4 + More) — a per-role tab COUNT already varies (Attendance is
+  // admin/administrative-only), so this doesn't introduce a new kind of
+  // inconsistency, just a wider gap in the same one.
+  { href: "/circles", labelKey: "circles", icon: "group_work", primary: true },
   { href: "/members", labelKey: "members", icon: "group" },
   { href: "/settings", labelKey: "settings", icon: "settings" },
 ];

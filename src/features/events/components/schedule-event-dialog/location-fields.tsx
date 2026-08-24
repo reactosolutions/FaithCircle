@@ -14,12 +14,16 @@ export function LocationFields({
   onHostIdChange,
   address,
   onAddressChange,
+  defaultInPersonCapacity,
 }: {
   hosts: HostCandidate[];
   hostId: string;
   onHostIdChange: (hostId: string) => void;
   address: string;
   onAddressChange: (address: string) => void;
+  // Pre-fills the capacity field when editing an existing event — omitted
+  // (and left to the placeholder-driven default) when scheduling a new one.
+  defaultInPersonCapacity?: number | null;
 }) {
   const t = useTranslations("Events");
   return (
@@ -69,6 +73,7 @@ export function LocationFields({
           name="inPersonCapacity"
           type="number"
           min={1}
+          defaultValue={defaultInPersonCapacity ?? undefined}
           placeholder={
             hostId
               ? (hosts.find((h) => h.id === hostId)?.host_capacity?.toString() ?? t("capacityOptional"))

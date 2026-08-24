@@ -7,6 +7,7 @@ const TONE_CLASS = {
   destructive: "bg-destructive/10 text-destructive",
   accent: "bg-accent/15 text-accent-foreground",
   info: "bg-info/10 text-info",
+  warning: "bg-warning/15 text-warning",
 } as const;
 
 const SIZE_CLASS = {

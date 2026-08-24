@@ -11,9 +11,12 @@ import { detectMeetProvider, useMeetProviderLabel } from "../../format";
 export function MeetingLinkFields({
   meetUrl,
   onMeetUrlChange,
+  defaultMeetNotes,
 }: {
   meetUrl: string;
   onMeetUrlChange: (meetUrl: string) => void;
+  // Pre-fills the joining-notes field when editing an existing event.
+  defaultMeetNotes?: string | null;
 }) {
   const t = useTranslations("Events");
   const MEET_PROVIDER_LABEL = useMeetProviderLabel();
@@ -40,7 +43,13 @@ export function MeetingLinkFields({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="meetNotes">{t("joiningNotesLabel")}</Label>
-        <Textarea id="meetNotes" name="meetNotes" rows={2} placeholder={t("joiningNotesPlaceholder")} />
+        <Textarea
+          id="meetNotes"
+          name="meetNotes"
+          rows={2}
+          defaultValue={defaultMeetNotes ?? undefined}
+          placeholder={t("joiningNotesPlaceholder")}
+        />
       </div>
     </>
   );

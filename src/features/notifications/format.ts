@@ -25,6 +25,16 @@ export function formatNotification(row: NotificationRow): { text: string; href: 
       };
     case "role_changed":
       return { text: `Your role changed to ${payload.newRole}`, href: "/settings/account" };
+    case "new_signup":
+      return payload.kind === "join_request"
+        ? {
+            text: `New join request from ${payload.fullName ?? payload.email}`,
+            href: "/settings/organization",
+          }
+        : {
+            text: `New signup awaiting approval: ${payload.fullName ?? payload.email}`,
+            href: "/members?status=pending",
+          };
     default:
       return { text: row.type, href: null };
   }
