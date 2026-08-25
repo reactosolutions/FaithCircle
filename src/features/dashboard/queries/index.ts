@@ -4,9 +4,4 @@
 // 550+ lines mixing all three dashboard views in one place.
 export { getMemberDashboardData, getStudentChartsData } from "./member";
 export { getLeaderDashboardData, getCircleChartsData } from "./leader";
-export {
-  getAdminDashboardData,
-  getAdminChartsData,
-  getPendingApprovals,
-  getAdminRecentActivity,
-} from "./admin";
+export { getPendingApprovals, getAdminRecentActivity } from "./admin";

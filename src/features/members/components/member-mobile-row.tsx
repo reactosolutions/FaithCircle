@@ -17,11 +17,12 @@ import { EditMemberDialog } from "./edit-member-dialog";
 import { RoleChangeDialog } from "./role-change-dialog";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import { CancelInvitationDialog } from "./cancel-invitation-dialog";
+import { DeleteMemberDialog } from "./delete-member-dialog";
 import { notifyActionResult } from "@/lib/notify";
 import { updateMemberStatus } from "../actions";
 import type { MemberRow } from "./members-table";
 
-type DialogKey = "edit" | "role" | "reset" | "cancel" | null;
+type DialogKey = "edit" | "role" | "reset" | "cancel" | "delete" | null;
 
 // One list row per member on phone (CLAUDE.md's "never stack a data table
 // into a multi-line card" rule doesn't leave room for the 4-5 separate icon
@@ -111,13 +112,19 @@ export function MemberMobileRow({
                 {t("cancelInvitationTrigger")}
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem
-                variant={status === "inactive" ? "default" : "destructive"}
-                onClick={toggleStatus}
-              >
-                <Icon name={status === "inactive" ? "check_circle" : "block"} size={16} />
-                {pending ? "…" : status === "inactive" ? t("reactivate") : t("deactivate")}
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem
+                  variant={status === "inactive" ? "default" : "destructive"}
+                  onClick={toggleStatus}
+                >
+                  <Icon name={status === "inactive" ? "check_circle" : "block"} size={16} />
+                  {pending ? "…" : status === "inactive" ? t("reactivate") : t("deactivate")}
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => setDialog("delete")}>
+                  <Icon name="delete" size={16} />
+                  {t("deleteMemberTrigger")}
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -145,12 +152,19 @@ export function MemberMobileRow({
         mobileOpen={dialog === "reset"}
         onMobileOpenChange={(open) => setDialog(open ? "reset" : null)}
       />
-      {member.status === "invited" && (
+      {member.status === "invited" ? (
         <CancelInvitationDialog
           profileId={member.id}
           memberName={name}
           mobileOpen={dialog === "cancel"}
           onMobileOpenChange={(open) => setDialog(open ? "cancel" : null)}
+        />
+      ) : (
+        <DeleteMemberDialog
+          profileId={member.id}
+          memberName={name}
+          mobileOpen={dialog === "delete"}
+          onMobileOpenChange={(open) => setDialog(open ? "delete" : null)}
         />
       )}
     </div>

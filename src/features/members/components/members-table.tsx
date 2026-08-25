@@ -13,6 +13,7 @@ import { MemberStatusToggle } from "./member-status-toggle";
 import { EditMemberDialog } from "./edit-member-dialog";
 import { ResetPasswordDialog } from "./reset-password-dialog";
 import { CancelInvitationDialog } from "./cancel-invitation-dialog";
+import { DeleteMemberDialog } from "./delete-member-dialog";
 import { MembersBulkToolbar } from "./members-bulk-toolbar";
 import { MemberMobileRow } from "./member-mobile-row";
 import { RoleBadge } from "./role-badge";
@@ -171,7 +172,13 @@ export function MembersTable({
                           memberName={member.full_name || member.email || t("defaultMemberName")}
                         />
                       ) : (
-                        <MemberStatusToggle profileId={member.id} status={member.status} />
+                        <>
+                          <MemberStatusToggle profileId={member.id} status={member.status} />
+                          <DeleteMemberDialog
+                            profileId={member.id}
+                            memberName={member.full_name || member.email || t("defaultMemberName")}
+                          />
+                        </>
                       )}
                     </div>
                   </TableCell>
@@ -229,7 +236,13 @@ export function MembersTable({
                           memberName={member.full_name || member.email || t("defaultMemberName")}
                         />
                       ) : (
-                        <MemberStatusToggle profileId={member.id} status={member.status} />
+                        <>
+                          <MemberStatusToggle profileId={member.id} status={member.status} />
+                          <DeleteMemberDialog
+                            profileId={member.id}
+                            memberName={member.full_name || member.email || t("defaultMemberName")}
+                          />
+                        </>
                       )}
                     </div>
                   )}

@@ -52,3 +52,11 @@ export const resetMemberPasswordSchema = z.object({
 export const cancelInvitationSchema = z.object({
   profileId: z.uuid(),
 });
+
+export const deleteMemberSchema = z.object({
+  profileId: z.uuid(),
+});
+
+export const bulkDeleteMembersSchema = z.object({
+  profileIds: z.array(z.uuid()).min(1),
+});

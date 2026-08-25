@@ -28,6 +28,7 @@ export type PermissionKey =
   | "members.invite"
   | "members.edit"
   | "members.deactivate"
+  | "members.delete"
   | "roles.assign_administrative"
   | "roles.assign_admin"
   | "circles.view"

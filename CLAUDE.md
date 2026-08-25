@@ -100,6 +100,7 @@ Permission matrix (seeded into `role_permissions`):
 | `members.invite` | all | circle | — |
 | `members.edit` | all | — | own |
 | `members.deactivate` | all | — | — |
+| `members.delete` | all | — | — |
 | `roles.assign_administrative` | all | — | — |
 | `roles.assign_admin` | all | — | — |
 | `circles.create` | all | — | — |
@@ -130,6 +131,17 @@ member of (`event_circles` ∪ `event_invitees`) — never anyone else's. There 
 separate "self-reported" column; a student's self-mark and a leader's later correction
 write the same row, so whichever happened last wins. That's an accepted tradeoff, not a
 gap to fix.
+
+`members.delete` is a genuine hard delete (`auth.users`, cascading to `profiles` and
+everything keyed off it) — distinct from `members.deactivate`, which only ever flips a
+status flag. `deleteMember`/`bulkDeleteMembers` (`features/members/actions.ts`) refuse to
+run it against anyone with real history: any `attendance` or `submissions` row, any
+`events.host_id` or `assignments.created_by` reference, or current circle leadership
+(`circle_leaders` or `circles.leader_id`) all block deletion with a specific reason —
+`updateMemberStatus`'s deactivate path is what those accounts need instead. Circle
+membership, RSVPs, notifications, and "who marked/reviewed this" references are not
+treated as history (the schema's own `on delete cascade`/`set null` choices already agree
+that losing those is fine) — safe to delete over.
 
 ## Role assignment
 
@@ -442,13 +454,20 @@ ADMINISTRATIVE (per circle they lead)
   this is what makes collecting them worthwhile.
 - Host rotation: list of members by "last hosted" date, oldest first.
 
-ADMIN
-- Growth: line chart of active members over time, all circles.
-- Circle comparison: grouped bar of attendance % per circle.
-- Role distribution: donut, admin / administrative / student.
-- Meeting format mix across the organization, stacked area over months.
+ADMIN — activity feed, not charts. An admin's dashboard need is "what needs my
+attention right now," not org-wide trend analysis (that's what the Members, Circles,
+and Audit log pages are for) — so this view stays chart-free by design:
+- Needs your approval: always renders, even with nothing pending (an admin dashboard
+  section that vanishes when empty reads as broken, not as "all clear") — a tinted
+  card listing pending signups and join requests, each linking to where it's actually
+  actioned (Members page or Settings > Organization). Empty state uses `EmptyState`.
+- Upcoming meetings, Recently submitted homework, and Recent attendance: three
+  equal-weight lists, org-wide (admin sees every circle unfiltered), each capped to a
+  handful of rows and linking through to the relevant event/assignment. Recent
+  attendance renders through `useAttendanceStatusMeta` for its status icon/color, same
+  as every other attendance list in the app.
 
-All charts
+All charts (STUDENT and ADMINISTRATIVE dashboards)
 - Animate on first render only (800ms ease-out), never on filter change — change should
   be instant so it feels responsive.
 - Under RTL, reverse the x-axis and mirror the legend. Recharts does not do this itself.

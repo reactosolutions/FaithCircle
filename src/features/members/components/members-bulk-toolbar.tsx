@@ -10,8 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { toast } from "sonner";
 import { notifyActionResult } from "@/lib/notify";
-import { bulkUpdateMemberStatus } from "../actions";
+import { bulkDeleteMembers, bulkUpdateMemberStatus } from "../actions";
 import { approveSignups, rejectSignups } from "@/features/settings/organization/actions";
 import type { ActionResult } from "@/lib/action-result";
 
@@ -34,12 +36,38 @@ export function MembersBulkToolbar({
   const t = useTranslations("Members");
   const [circleId, setCircleId] = useState("");
   const [pending, startTransition] = useTransition();
+  const [deleteMobileOpen, setDeleteMobileOpen] = useState(false);
+  const [deleteDesktopOpen, setDeleteDesktopOpen] = useState(false);
 
   function run(action: () => Promise<ActionResult>, successMessage: string) {
     startTransition(async () => {
       const result = await action();
       notifyActionResult(result, result.ok ? successMessage : undefined);
       if (result.ok) onDone();
+    });
+  }
+
+  // Deletion is irreversible (unlike the reversible actions above), so it's
+  // the one button in this toolbar that goes through a confirm step first —
+  // and unlike the fixed success strings above, the toast has to be built
+  // from what actually happened: some selected rows may have real history
+  // and get silently skipped rather than deleted (see bulkDeleteMembers).
+  function handleDelete() {
+    startTransition(async () => {
+      const result = await bulkDeleteMembers({ profileIds: selectedIds });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      const { deletedCount, skippedCount } = result.data ?? { deletedCount: 0, skippedCount: 0 };
+      toast.success(
+        skippedCount > 0
+          ? t("bulkDeletedWithSkippedToast", { deleted: deletedCount, skipped: skippedCount })
+          : t("bulkDeletedToast", { count: deletedCount }),
+      );
+      setDeleteMobileOpen(false);
+      setDeleteDesktopOpen(false);
+      onDone();
     });
   }
 
@@ -113,6 +141,26 @@ export function MembersBulkToolbar({
         >
           {t("bulkReactivateButton")}
         </Button>
+        <ResponsiveDialog
+          mobileOpen={deleteMobileOpen}
+          onMobileOpenChange={setDeleteMobileOpen}
+          desktopOpen={deleteDesktopOpen}
+          onDesktopOpenChange={setDeleteDesktopOpen}
+          triggerLabel={t("bulkDeleteButton")}
+          triggerVariant="destructive"
+          title={t("bulkDeleteTitle")}
+          description={t("bulkDeleteDescription", { count: selectedIds.length })}
+        >
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={pending}
+            className="w-full rounded-full"
+            onClick={handleDelete}
+          >
+            {pending ? t("deletingButton") : t("bulkDeleteConfirmButton")}
+          </Button>
+        </ResponsiveDialog>
       </div>
     </div>
   );

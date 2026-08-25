@@ -15,6 +15,8 @@ import {
   updateMemberProfileSchema,
   resetMemberPasswordSchema,
   cancelInvitationSchema,
+  deleteMemberSchema,
+  bulkDeleteMembersSchema,
 } from "./schema";
 
 // No email system relied on for onboarding (see inviteMember/resetMemberPassword
@@ -416,4 +418,168 @@ export async function updateMemberProfile(
 
   refresh();
   return { ok: true };
+}
+
+// Which of these profiles have real activity history — attended a meeting,
+// submitted homework, hosted a meeting, authored an assignment, or
+// currently lead a circle (circle_leaders or circles.leader_id). Anyone in
+// the returned set is off-limits to deleteMember/bulkDeleteMembers below.
+//
+// Deliberately NOT included, matching the schema's own `on delete
+// cascade`/`set null` choices for these same columns (see CLAUDE.md's note
+// on members.delete): circle_members (current membership, not a historical
+// record), event_rsvps, event_invitees, notifications, host_blackout_dates,
+// and "who marked/reviewed this" references (attendance.marked_by,
+// submissions.reviewer_id, join_requests.reviewed_by) — losing those is
+// exactly what the schema already treats as safe.
+async function findProfilesWithHistory(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profileIds: string[],
+): Promise<Set<string>> {
+  if (profileIds.length === 0) return new Set();
+
+  const [
+    { data: attendanceRows },
+    { data: submissionRows },
+    { data: hostedEvents },
+    { data: createdAssignments },
+    { data: leaderRows },
+    { data: primaryLeaderCircles },
+  ] = await Promise.all([
+    supabase.from("attendance").select("profile_id").in("profile_id", profileIds),
+    supabase.from("submissions").select("profile_id").in("profile_id", profileIds),
+    supabase.from("events").select("host_id").in("host_id", profileIds),
+    supabase.from("assignments").select("created_by").in("created_by", profileIds),
+    supabase.from("circle_leaders").select("profile_id").in("profile_id", profileIds),
+    supabase.from("circles").select("leader_id").in("leader_id", profileIds),
+  ]);
+
+  const withHistory = new Set<string>();
+  for (const row of attendanceRows ?? []) withHistory.add(row.profile_id);
+  for (const row of submissionRows ?? []) withHistory.add(row.profile_id);
+  for (const row of hostedEvents ?? []) if (row.host_id) withHistory.add(row.host_id);
+  for (const row of createdAssignments ?? []) if (row.created_by) withHistory.add(row.created_by);
+  for (const row of leaderRows ?? []) withHistory.add(row.profile_id);
+  for (const row of primaryLeaderCircles ?? []) if (row.leader_id) withHistory.add(row.leader_id);
+  return withHistory;
+}
+
+const HAS_HISTORY_ERROR =
+  "This member has attendance, homework, or leadership history and can't be deleted. Deactivate them instead.";
+
+// members.delete is a genuine hard delete (auth.users, cascading to
+// profiles and everything keyed off it) — see CLAUDE.md's note on this
+// permission. Unlike cancelInvitation (unconditional, but only ever
+// reachable for status='invited', which trivially has no history yet),
+// this is reachable for any member, so the history check above is what
+// keeps it from silently erasing real records.
+export async function deleteMember(input: unknown): Promise<ActionResult> {
+  const parsed = deleteMemberSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const actor = await requirePermission("members.delete");
+  if (!actor.ok) return actor;
+
+  if (parsed.data.profileId === actor.userId) {
+    return { ok: false, error: "You can't delete your own account." };
+  }
+
+  const { data: target } = await actor.supabase
+    .from("profiles")
+    .select("role, status")
+    .eq("id", parsed.data.profileId)
+    .single();
+  if (!target) {
+    return { ok: false, error: "That member no longer exists." };
+  }
+
+  if (target.role === "admin" && target.status === "active") {
+    const { count } = await actor.supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin")
+      .eq("status", "active");
+    if ((count ?? 0) <= 1) {
+      return { ok: false, error: "You can't delete the last remaining admin." };
+    }
+  }
+
+  const withHistory = await findProfilesWithHistory(actor.supabase, [parsed.data.profileId]);
+  if (withHistory.has(parsed.data.profileId)) {
+    return { ok: false, error: HAS_HISTORY_ERROR };
+  }
+
+  // Deleting the auth.users row cascades to profiles (and from there to
+  // circle_members/circle_leaders/host_blackout_dates/notifications/...)
+  // per their `on delete cascade` foreign keys — nothing else to clean up
+  // separately.
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.auth.admin.deleteUser(parsed.data.profileId);
+  if (error) {
+    return { ok: false, error: "Could not delete this member." };
+  }
+
+  refresh();
+  return { ok: true };
+}
+
+// Bulk sibling of deleteMember, for the Members page's multi-select
+// toolbar. Same self-id-drop precedent as bulkUpdateMemberStatus, plus:
+// anyone with real history is silently skipped rather than failing the
+// whole batch (a "select all" that mixes junk signups with real members
+// should still delete the junk ones) — the returned counts are what let
+// the toolbar tell the admin what actually happened.
+export async function bulkDeleteMembers(
+  input: unknown,
+): Promise<ActionResult<{ deletedCount: number; skippedCount: number }>> {
+  const parsed = bulkDeleteMembersSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  }
+
+  const actor = await requirePermission("members.delete");
+  if (!actor.ok) return actor;
+
+  const targetIds = parsed.data.profileIds.filter((id) => id !== actor.userId);
+  if (targetIds.length === 0) {
+    return { ok: false, error: "You can't delete your own account." };
+  }
+
+  const { data: targets } = await actor.supabase
+    .from("profiles")
+    .select("id, role, status")
+    .in("id", targetIds);
+
+  const activeAdminTargetIds = (targets ?? [])
+    .filter((row) => row.role === "admin" && row.status === "active")
+    .map((row) => row.id);
+  if (activeAdminTargetIds.length > 0) {
+    const { count } = await actor.supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin")
+      .eq("status", "active")
+      .not("id", "in", `(${activeAdminTargetIds.join(",")})`);
+    if ((count ?? 0) === 0) {
+      return { ok: false, error: "You can't delete every remaining active admin." };
+    }
+  }
+
+  const withHistory = await findProfilesWithHistory(actor.supabase, targetIds);
+  const deletableIds = targetIds.filter((id) => !withHistory.has(id));
+  if (deletableIds.length === 0) {
+    return { ok: false, error: HAS_HISTORY_ERROR };
+  }
+
+  const adminClient = createAdminClient();
+  const results = await Promise.all(deletableIds.map((id) => adminClient.auth.admin.deleteUser(id)));
+  const deletedCount = results.filter((result) => !result.error).length;
+  if (deletedCount === 0) {
+    return { ok: false, error: "Could not delete the selected members." };
+  }
+
+  refresh();
+  return { ok: true, data: { deletedCount, skippedCount: targetIds.length - deletedCount } };
 }

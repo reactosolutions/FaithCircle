@@ -324,6 +324,7 @@ insert into public.permissions (key, resource, action, description) values
   ('members.invite', 'members', 'invite', 'Invite a new member'),
   ('members.edit', 'members', 'edit', 'Edit a member profile'),
   ('members.deactivate', 'members', 'deactivate', 'Deactivate a member'),
+  ('members.delete', 'members', 'delete', 'Permanently delete a member with no activity history'),
   ('roles.assign_administrative', 'roles', 'assign_administrative', 'Promote/demote a circle leader'),
   ('roles.assign_admin', 'roles', 'assign_admin', 'Promote/demote an admin'),
   ('circles.view', 'circles', 'view', 'See a circle exists'),
@@ -368,6 +369,8 @@ insert into public.role_permissions (role, permission_key, scope) values
   ('student', 'members.edit', 'own'),
 
   ('admin', 'members.deactivate', 'all'),
+
+  ('admin', 'members.delete', 'all'),
 
   ('admin', 'roles.assign_administrative', 'all'),
   ('admin', 'roles.assign_admin', 'all'),

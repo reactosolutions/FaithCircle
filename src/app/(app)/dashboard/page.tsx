@@ -1,8 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import {
-  getAdminChartsData,
-  getAdminDashboardData,
   getAdminRecentActivity,
   getCircleChartsData,
   getLeaderDashboardData,
@@ -28,16 +26,11 @@ export default async function DashboardPage() {
   }
 
   if (profile.role === "admin") {
-    const [stats, charts, approvals, activity] = await Promise.all([
-      getAdminDashboardData(),
-      getAdminChartsData(),
-      getPendingApprovals(),
-      getAdminRecentActivity(),
-    ]);
+    const [approvals, activity] = await Promise.all([getPendingApprovals(), getAdminRecentActivity()]);
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title={t("title")} />
-        <AdminDashboardSection stats={stats} charts={charts} approvals={approvals} activity={activity} />
+        <AdminDashboardSection approvals={approvals} activity={activity} />
       </div>
     );
   }
