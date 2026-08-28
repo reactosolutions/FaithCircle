@@ -72,11 +72,13 @@ export default async function EventDetailPage({
     event.in_person_capacity != null && inPersonGoing > event.in_person_capacity;
 
   // Edit-form data (host/invite pickers, other circles) is only ever used
-  // by the EditEventDialog rendered below for a leader — skip the extra
-  // round trips entirely for a plain member viewing the page.
-  const canEdit = isLeader && !!circle;
+  // by the EditEventDialog rendered below — skip the extra round trips
+  // entirely for anyone who can't edit this meeting. A leader/admin can
+  // edit any meeting in their circle; a student can edit one they created
+  // themselves (events.edit 'own' scope, keyed on events.created_by).
+  const canEdit = !!circle && (isLeader || event.created_by === user?.id);
   const [hosts, inviteCandidates, allCirclesWithCounts, ownCircleMemberCount] =
-    isLeader && circle
+    canEdit && circle
       ? await Promise.all([
           listHostCandidates(circle.id),
           listInviteCandidates(circle.id),

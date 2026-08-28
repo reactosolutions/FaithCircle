@@ -178,6 +178,7 @@ export interface Database {
           parent_event_id: string | null;
           status: EventStatus;
           created_at: string;
+          created_by: string | null;
           format: EventFormat;
           meet_url: string | null;
           meet_provider: MeetProvider | null;

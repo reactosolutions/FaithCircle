@@ -103,25 +103,25 @@ begin
   -- Three past events, hosted by Omar, each with a full attendance sheet
   select id into v_ev1 from public.events where circle_id = v_circle_id and title = 'Week 1: Foundations';
   if v_ev1 is null then
-    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status)
+    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status, created_by)
     values (v_circle_id, 'Week 1: Foundations', now() - interval '21 days',
-      now() - interval '21 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed')
+      now() - interval '21 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed', v_lead1_id)
     returning id into v_ev1;
   end if;
 
   select id into v_ev2 from public.events where circle_id = v_circle_id and title = 'Week 2: Community';
   if v_ev2 is null then
-    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status)
+    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status, created_by)
     values (v_circle_id, 'Week 2: Community', now() - interval '14 days',
-      now() - interval '14 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed')
+      now() - interval '14 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed', v_lead1_id)
     returning id into v_ev2;
   end if;
 
   select id into v_ev3 from public.events where circle_id = v_circle_id and title = 'Week 3: Service';
   if v_ev3 is null then
-    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status)
+    insert into public.events (circle_id, title, starts_at, ends_at, host_id, address, status, created_by)
     values (v_circle_id, 'Week 3: Service', now() - interval '7 days',
-      now() - interval '7 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed')
+      now() - interval '7 days' + interval '90 minutes', v_lead1_id, '14 Olive St', 'completed', v_lead1_id)
     returning id into v_ev3;
   end if;
 

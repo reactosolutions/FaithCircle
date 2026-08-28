@@ -130,14 +130,42 @@ describe("has_permission() — representative matrix rows", () => {
     expect(data).toBe(true);
   });
 
-  it("student does NOT have events.create, even in their own circle", async () => {
+  it("student HAS events.create in a circle they belong to ('circle' scope — any member may schedule)", async () => {
     const { data, error } = await student.rpc("has_permission", {
       actor: studentId,
       key: "events.create",
       target_circle: circleId,
     });
     expect(error).toBeNull();
-    expect(data).toBe(false);
+    expect(data).toBe(true);
+  });
+
+  it("student's events.edit is 'own' scope — their own created meeting only, never a leader's", async () => {
+    // No target profile → 'own' scope has nothing to match on → denied.
+    const { data: noTarget } = await student.rpc("has_permission", {
+      actor: studentId,
+      key: "events.edit",
+      target_circle: circleId,
+    });
+    expect(noTarget).toBe(false);
+
+    // Meeting they created (created_by = them) → allowed.
+    const { data: ownMeeting } = await student.rpc("has_permission", {
+      actor: studentId,
+      key: "events.edit",
+      target_circle: circleId,
+      target_profile: studentId,
+    });
+    expect(ownMeeting).toBe(true);
+
+    // Meeting someone else created → denied.
+    const { data: othersMeeting } = await student.rpc("has_permission", {
+      actor: studentId,
+      key: "events.edit",
+      target_circle: circleId,
+      target_profile: leaderId,
+    });
+    expect(othersMeeting).toBe(false);
   });
 
   it("submissions.create is 'own' scope for all three roles — the author/answerer rule", async () => {

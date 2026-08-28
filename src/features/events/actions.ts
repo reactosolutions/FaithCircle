@@ -77,6 +77,9 @@ export async function createEvent(
 
   const basePayload = {
     circle_id: parsed.data.circleId,
+    // The organizer of record — drives events.edit's 'own' scope, so a
+    // student who scheduled this can keep managing it (and only it).
+    created_by: actor.userId,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     recurrence: parsed.data.recurrence,
@@ -233,14 +236,19 @@ export async function updateEvent(
   const lookupClient = await createClient();
   const { data: current } = await lookupClient
     .from("events")
-    .select("id, circle_id, starts_at, parent_event_id")
+    .select("id, circle_id, starts_at, parent_event_id, created_by")
     .eq("id", parsed.data.eventId)
     .single();
   if (!current) {
     return { ok: false, error: "That meeting no longer exists." };
   }
 
-  const actor = await requirePermission("events.edit", { circleId: current.circle_id });
+  // profileId feeds events.edit's 'own' scope (a student may only edit a
+  // meeting they created); admin 'all' and administrative 'circle' ignore it.
+  const actor = await requirePermission("events.edit", {
+    circleId: current.circle_id,
+    profileId: current.created_by,
+  });
   if (!actor.ok) return actor;
 
   const newStartsAt = fromZonedTime(parsed.data.startsAt, CIRCLE_TIME_ZONE);

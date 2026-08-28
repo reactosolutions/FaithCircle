@@ -68,11 +68,19 @@ export default async function EventsPage({
 
   // Every circle this calendar shows — always combined, no per-circle
   // filter (see the schedule-event-dialog's own owning-circle dropdown for
-  // where "which circle" now lives instead). Scheduling is limited to
-  // circles the viewer can actually organize for: every circle for admin,
-  // only led circles for administrative.
+  // where "which circle" now lives instead). Scheduling mirrors
+  // has_permission's events.create scope: every circle for admin, only led
+  // circles for administrative, and — since events.create is 'circle' for
+  // students too — every circle a student belongs to (listViewerCircles
+  // already returns exactly the viewer's circles under RLS).
   const schedulableCircles =
-    viewer?.role === "admin" ? circles : circles.filter((c) => c.leader_id === viewer?.id);
+    viewer?.role === "admin"
+      ? circles
+      : viewer?.role === "administrative"
+        ? circles.filter((c) => c.leader_id === viewer?.id)
+        : viewer
+          ? circles
+          : [];
   const canSchedule = schedulableCircles.length > 0;
   // Saudi convention (Sunday) by default, overridable in Preferences — never
   // left to date-fns's own Monday-first default.

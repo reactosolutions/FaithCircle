@@ -351,9 +351,15 @@ on conflict (key) do update set resource = excluded.resource, action = excluded.
 -- Scope legend: 'own' = only rows where the actor is the subject. 'circle'
 -- = for administrative, circles in circle_leaders (leadership required,
 -- even for read-type permissions); for student, circles in circle_members
--- (membership is enough — every 'circle'-scoped permission a student holds
--- is read-only). 'all' = unrestricted. admin is 'all' on every row below —
--- it never uses 'circle' scope.
+-- (membership is enough). 'all' = unrestricted. admin is 'all' on every row
+-- below — it never uses 'circle' scope.
+--
+-- 'events.create' is the one 'circle'-scoped WRITE a student holds: any
+-- member of a circle may schedule a meeting for it. Everything a student
+-- then does to that meeting (edit, invite other circles, see its RSVP
+-- headcount) runs through 'events.edit' at 'own' scope — keyed on
+-- events.created_by, so it only ever covers meetings they created
+-- themselves, never one a leader scheduled.
 insert into public.role_permissions (role, permission_key, scope) values
   ('admin', 'members.view', 'all'),
   ('administrative', 'members.view', 'circle'),
@@ -390,9 +396,11 @@ insert into public.role_permissions (role, permission_key, scope) values
 
   ('admin', 'events.create', 'all'),
   ('administrative', 'events.create', 'circle'),
+  ('student', 'events.create', 'circle'),
 
   ('admin', 'events.edit', 'all'),
   ('administrative', 'events.edit', 'circle'),
+  ('student', 'events.edit', 'own'),
 
   ('admin', 'events.delete', 'all'),
   ('administrative', 'events.delete', 'circle'),
@@ -458,7 +466,18 @@ alter table public.events add column if not exists recurrence public.event_recur
 alter table public.events add column if not exists parent_event_id uuid references public.events (id) on delete cascade;
 alter table public.events add column if not exists status public.event_status not null default 'scheduled';
 alter table public.events add column if not exists created_at timestamptz not null default now();
+-- Who scheduled this meeting. Source of truth for 'events.edit' at 'own'
+-- scope (a student may fully manage a meeting they created, nothing else).
+-- Nullable + on delete set null like assignments.created_by: losing the
+-- author reference when an account is hard-deleted is acceptable, and pre-
+-- existing rows are backfilled to the owning circle's primary leader below.
+alter table public.events add column if not exists created_by uuid references public.profiles (id) on delete set null;
 alter table public.events alter column circle_id set not null;
+
+update public.events e
+set created_by = c.leader_id
+from public.circles c
+where c.id = e.circle_id and e.created_by is null and c.leader_id is not null;
 
 -- Meeting formats: host_id/address/lat/lng stay nullable (an online-only
 -- event has no host); format + meet_url instead determine what's required,
@@ -1065,8 +1084,12 @@ create policy "circle_leaders_write_admin" on public.circle_leaders for all
 -- resolved event member (event_circles ∪ event_invitees — is_event_member
 -- covers ad-hoc individual invitees and additional invited circles that
 -- events.view's single target_circle can't express). Write: events.create/
--- edit/delete, all 'circle' scope for administrative today, kept as three
--- separate policies so they can diverge later without a rewrite.
+-- edit/delete, kept as three separate policies so they can diverge without
+-- a rewrite. events.edit/delete pass created_by as the target profile so
+-- the student 'own' scope resolves against "did I schedule this meeting"
+-- (admin 'all' and administrative 'circle' ignore it). events_insert
+-- additionally pins created_by to the caller so a student can't file a
+-- meeting under someone else's name.
 
 drop policy if exists "events_select" on public.events;
 create policy "events_select" on public.events for select
@@ -1081,19 +1104,23 @@ drop policy if exists "events_update" on public.events;
 drop policy if exists "events_delete" on public.events;
 
 create policy "events_insert" on public.events for insert
-  with check (public.has_permission(auth.uid(), 'events.create', circle_id, null));
+  with check (
+    public.has_permission(auth.uid(), 'events.create', circle_id, null)
+    and created_by = auth.uid()
+  );
 
 create policy "events_update" on public.events for update
-  using (public.has_permission(auth.uid(), 'events.edit', circle_id, null))
-  with check (public.has_permission(auth.uid(), 'events.edit', circle_id, null));
+  using (public.has_permission(auth.uid(), 'events.edit', circle_id, created_by))
+  with check (public.has_permission(auth.uid(), 'events.edit', circle_id, created_by));
 
 create policy "events_delete" on public.events for delete
-  using (public.has_permission(auth.uid(), 'events.delete', circle_id, null));
+  using (public.has_permission(auth.uid(), 'events.delete', circle_id, created_by));
 
 -- ---------- event_circles ----------
 -- Read: anyone who can already read the event. Write: events.edit on the
 -- owning circle — inviting another circle is an act of the organizer, not
--- something the invited circle's own leader needs to approve.
+-- something the invited circle's own leader needs to approve. created_by is
+-- passed through so a student may open their own meeting to another circle.
 
 drop policy if exists "event_circles_select" on public.event_circles;
 create policy "event_circles_select" on public.event_circles for select
@@ -1112,14 +1139,14 @@ create policy "event_circles_write" on public.event_circles for all
     exists (
       select 1 from public.events e
       where e.id = event_circles.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, null)
+        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
     )
   )
   with check (
     exists (
       select 1 from public.events e
       where e.id = event_circles.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, null)
+        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
     )
   );
 
@@ -1143,21 +1170,22 @@ create policy "event_invitees_write" on public.event_invitees for all
     exists (
       select 1 from public.events e
       where e.id = event_invitees.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, null)
+        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
     )
   )
   with check (
     exists (
       select 1 from public.events e
       where e.id = event_invitees.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, null)
+        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
     )
   );
 
 -- ---------- event_rsvps ----------
--- Read: your own row, or events.edit on the event's circle (the leader
--- managing the meeting). Write: events.rsvp, 'own' scope for every role —
--- only your own RSVP, for events you're a resolved member of.
+-- Read: your own row, or events.edit on the event's circle (the leader —
+-- or the student who scheduled it, via created_by — managing headcount).
+-- Write: events.rsvp, 'own' scope for every role — only your own RSVP, for
+-- events you're a resolved member of.
 
 drop policy if exists "event_rsvps_select" on public.event_rsvps;
 create policy "event_rsvps_select" on public.event_rsvps for select
@@ -1166,7 +1194,7 @@ create policy "event_rsvps_select" on public.event_rsvps for select
     or exists (
       select 1 from public.events e
       where e.id = event_rsvps.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, null)
+        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
     )
   );
 

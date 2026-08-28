@@ -76,9 +76,11 @@ RLS policies.
   `'own'` = only rows where the actor is the subject. `'circle'` = rows in circles the
   actor is involved with — for `administrative` this means circles in `circle_leaders`
   (leadership required, including for every write permission); for `student` it means
-  circles in `circle_members` (membership is enough, since every `'circle'`-scoped
-  permission a student holds is read-only). `admin` never uses `'circle'` scope — every
-  admin row in the matrix is `'all'`. `'all'` = unrestricted.
+  circles in `circle_members` (membership is enough). The one `'circle'`-scoped *write*
+  a student holds is `events.create` — any member may schedule a meeting for their
+  circle; everything they do to that meeting afterwards runs through `events.edit` at
+  `'own'` scope (keyed on `events.created_by`). `admin` never uses `'circle'` scope —
+  every admin row in the matrix is `'all'`. `'all'` = unrestricted.
 - `circle_leaders` — `circle_id`, `profile_id`. An `administrative` may lead more than one
   circle. `circles.leader_id` remains the circle's single primary/organizing leader (used
   for defaults like the events form's owning circle); `circle_leaders` is the source of
@@ -106,8 +108,8 @@ Permission matrix (seeded into `role_permissions`):
 | `circles.create` | all | — | — |
 | `circles.edit_settings` | all | circle | — |
 | `events.view` | all | circle | circle |
-| `events.create` | all | circle | — |
-| `events.edit` | all | circle | — |
+| `events.create` | all | circle | circle |
+| `events.edit` | all | circle | own |
 | `events.delete` | all | circle | — |
 | `events.rsvp` | own | own | own |
 | `attendance.view` | all | circle | own |
@@ -124,6 +126,16 @@ Permission matrix (seeded into `role_permissions`):
 `submissions.create` is `own` for all three roles — that's what makes `administrative`
 both an author and an answerer. `roles.assign_admin` is admin-only, so an `administrative`
 can never manufacture a peer or a superior.
+
+`events.create`/`events.edit` let any member run their own meetings: a `student` may
+schedule a meeting for a circle they belong to, then fully edit it, invite other
+circles/people to it, and see its RSVP headcount — all gated by `events.created_by`
+matching them (`events.edit`'s `own` scope). They cannot touch a meeting a leader
+scheduled, and there is no student `events.delete`. A member who needs to host at their
+home marks themselves available in Settings > Hosting (the `can_host` toggle, open to
+every role) and then picks themselves in the host field of a meeting they created —
+setting `host_id` to yourself is not a separate permission. Pre-existing meetings are
+backfilled so `created_by` is the owning circle's primary leader.
 
 `attendance.record`'s `own` scope for `student` is a deliberate self-check-in exception:
 a student may mark their own attendance row, but only for an event they're a resolved
@@ -328,7 +340,9 @@ Retention: partition audit_log by month. Keep 24 months hot, archive older to st
   `profiles.role` — never a subquery on `profiles` inside a `profiles` policy, or
   you'll create infinite recursion.
 - Policy intent:
-  - students read events/assignments only for circles they belong to
+  - students read events/assignments only for circles they belong to, and may create
+    events in those circles — then edit/manage only the ones they created
+    (`events.created_by`)
   - students read/write only their own rsvp, attendance row (self-check-in — see
     `attendance.record`'s `own` scope above), and submissions
   - administrative read/write everything inside circles they lead, plus their own submissions
