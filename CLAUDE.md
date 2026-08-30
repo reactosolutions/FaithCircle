@@ -141,13 +141,17 @@ a shortcut on the dashboard's upcoming-meetings list / hero for hostless meeting
 caller and only the caller, copies their saved `home_address`/`home_lat`/`home_lng`/
 `host_capacity` onto the meeting, and flips their `can_host` on so there's no detour
 through Settings > Hosting first. It requires the caller be a resolved member
-(`is_event_member`) of a non-online meeting **with no host yet** — one host per meeting,
-so the function rejects a claim when someone else already holds it; the current host must
-`release_event_host(event_id)` (current-host-only) or a leader must reassign first. The
-"I'll host" control only renders when the slot is open (or, for the current host, as
-"Step down"), and always shows a confirm step naming the exact date. Marking yourself
-available in Settings > Hosting + picking yourself in an edit form still works for
-meetings you own.
+(`is_event_member`) of a non-online meeting. One host per meeting: a plain member's claim
+is rejected when someone else already holds the slot, but anyone with `events.edit` for
+that meeting (admin `all`, circle leader `circle`, the student creator `own`) can take it
+over. `release_event_host(event_id)` clears the host — the current host on themselves, or
+an `events.edit` holder on anyone. The "I'll host" control renders as "Step down" for the
+current host, "I'll host" (with a confirm naming the date) when the slot is open, and
+"Remove host" for an `events.edit` holder when someone else holds it; the edit form's
+host field also has a "Remove host" clear. `events.delete` (admin `all`, leader `circle`,
+never a student — the creator can edit a meeting but not delete it) drives `deleteEvent`,
+which removes the meeting; deleting any occurrence of a recurring series deletes the whole
+series (the `parent_event_id` FK cascades from the root).
 
 RSVP and attendance are ONE record (`event_rsvps`, one row per event+person) — "are you
 coming" and "did you come" are the same field. `response` doubles as the attendance

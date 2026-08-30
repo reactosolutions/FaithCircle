@@ -138,3 +138,6 @@ export const rsvpSchema = z
 // Self-service host claim / release — just the event id; the SECURITY
 // DEFINER function does every real check.
 export const eventHostSelfSchema = z.object({ eventId: z.uuid() });
+
+// Delete a meeting (and, when it's a recurring series, every occurrence).
+export const deleteEventSchema = z.object({ eventId: z.uuid() });

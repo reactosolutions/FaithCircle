@@ -947,6 +947,8 @@ declare
   v_uid uuid := auth.uid();
   v_format public.event_format;
   v_host uuid;
+  v_circle uuid;
+  v_created_by uuid;
   v_addr text;
   v_lat double precision;
   v_lng double precision;
@@ -956,17 +958,23 @@ begin
     raise exception 'Not signed in.';
   end if;
 
-  select format, host_id into v_format, v_host from public.events where id = target_event_id;
+  select format, host_id, circle_id, created_by
+    into v_format, v_host, v_circle, v_created_by
+  from public.events where id = target_event_id;
   if v_format is null then
     raise exception 'That meeting no longer exists.';
   end if;
   if v_format = 'online' then
     raise exception 'An online meeting has no host.';
   end if;
-  if v_host is not null and v_host <> v_uid then
+  -- One host per meeting — but an admin / circle leader (anyone with
+  -- events.edit here) can take over an assigned slot; a plain member can't.
+  if v_host is not null and v_host <> v_uid
+     and not public.has_permission(v_uid, 'events.edit', v_circle, v_created_by) then
     raise exception 'This meeting already has a host.';
   end if;
-  if not public.is_event_member(target_event_id) then
+  if not public.is_event_member(target_event_id)
+     and not public.has_permission(v_uid, 'events.edit', v_circle, v_created_by) then
     raise exception 'You are not on this meeting''s guest list.';
   end if;
 
@@ -988,8 +996,9 @@ begin
 end;
 $$;
 
--- Step back down. Only the meeting's current host may, and it just clears
--- host_id — the address is left as-is for a leader to repoint.
+-- Clear a meeting's host. The current host may step themselves down; an
+-- admin / circle leader (events.edit) may clear anyone's. Address is left
+-- as-is for a leader to repoint.
 create or replace function public.release_event_host(target_event_id uuid)
 returns void
 language plpgsql security definer set search_path = public
@@ -997,12 +1006,16 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_host uuid;
+  v_circle uuid;
+  v_created_by uuid;
 begin
   if v_uid is null then
     raise exception 'Not signed in.';
   end if;
-  select host_id into v_host from public.events where id = target_event_id;
-  if v_host is distinct from v_uid then
+  select host_id, circle_id, created_by into v_host, v_circle, v_created_by
+  from public.events where id = target_event_id;
+  if v_host is distinct from v_uid
+     and not public.has_permission(v_uid, 'events.edit', v_circle, v_created_by) then
     raise exception 'You are not the host of this meeting.';
   end if;
   update public.events set host_id = null where id = target_event_id;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -29,7 +30,20 @@ export function LocationFields({
   return (
     <>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="hostId">{t("hostLabel")}</Label>
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="hostId">{t("hostLabel")}</Label>
+          {hostId && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs text-muted-foreground"
+              onClick={() => onHostIdChange("")}
+            >
+              {t("removeHost")}
+            </Button>
+          )}
+        </div>
         <input type="hidden" name="hostId" value={hostId} />
         <Select
           value={hostId}

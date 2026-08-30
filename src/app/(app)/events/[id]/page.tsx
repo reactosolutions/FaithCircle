@@ -23,6 +23,7 @@ import { SelfAttendanceControl } from "@/features/attendance/components/self-att
 import { FormatBadge } from "@/features/events/components/format-badge";
 import { AttendeeList } from "@/features/events/components/attendee-list";
 import { EditEventDialog } from "@/features/events/components/edit-event-dialog";
+import { DeleteEventDialog } from "@/features/events/components/delete-event-dialog";
 import { HostVolunteerControl } from "@/features/events/components/host-volunteer-control";
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,9 @@ export default async function EventDetailPage({
   // edit any meeting in their circle; a student can edit one they created
   // themselves (events.edit 'own' scope, keyed on events.created_by).
   const canEdit = !!circle && (isLeader || event.created_by === user?.id);
+  // events.delete is admin='all' / administrative='circle' — never a
+  // student's 'own'. RLS is the real gate; this just decides the button.
+  const canDelete = !!circle && isLeader;
   const [hosts, inviteCandidates, allCirclesWithCounts, ownCircleMemberCount] =
     canEdit && circle
       ? await Promise.all([
@@ -100,19 +104,29 @@ export default async function EventDetailPage({
             <FormatBadge format={event.format} />
           </div>
           {circle && <p className="text-sm text-muted-foreground">{circle.name}</p>}
-          {canEdit && circle && (
+          {circle && (canEdit || canDelete) && (
             <CardAction>
-              <EditEventDialog
-                event={event}
-                hosts={hosts}
-                inviteCandidates={inviteCandidates}
-                otherCircles={allCirclesWithCounts.filter((c) => c.id !== circle.id)}
-                ownCircleMemberCount={ownCircleMemberCount}
-                initialExtraCircleIds={invitedCircles.map((c) => c.circleId).filter((id) => id !== circle.id)}
-                initialInviteeIds={invitees.map((i) => i.profileId)}
-                triggerIcon="edit"
-                triggerVariant="outline"
-              />
+              <div className="flex items-center gap-2">
+                {canEdit && (
+                  <EditEventDialog
+                    event={event}
+                    hosts={hosts}
+                    inviteCandidates={inviteCandidates}
+                    otherCircles={allCirclesWithCounts.filter((c) => c.id !== circle.id)}
+                    ownCircleMemberCount={ownCircleMemberCount}
+                    initialExtraCircleIds={invitedCircles.map((c) => c.circleId).filter((id) => id !== circle.id)}
+                    initialInviteeIds={invitees.map((i) => i.profileId)}
+                    triggerIcon="edit"
+                    triggerVariant="outline"
+                  />
+                )}
+                {canDelete && (
+                  <DeleteEventDialog
+                    eventId={event.id}
+                    isRecurring={event.recurrence !== "none" || event.parent_event_id !== null}
+                  />
+                )}
+              </div>
             </CardAction>
           )}
         </CardHeader>
@@ -169,13 +183,16 @@ export default async function EventDetailPage({
                   {overCapacity ? t("overCapacitySuffix") : ""}
                 </span>
               )}
-              {/* One host per meeting: only offer "I'll host" when the slot
-                  is open, and "Step down" only to the current host. */}
-              {user && (!event.host_id || event.host_id === user.id) && (
+              {/* Open slot -> "I'll host"; you're the host -> "Step down";
+                  someone else hosts + you can edit the event -> "Remove
+                  host" (admin / leader); otherwise nothing. */}
+              {user && (
                 <HostVolunteerControl
                   eventId={event.id}
                   startsAt={event.starts_at}
-                  isCurrentHost={event.host_id === user.id}
+                  isCurrentHost={!!event.host_id && event.host_id === user.id}
+                  hasOtherHost={!!event.host_id && event.host_id !== user.id}
+                  canManageHost={canEdit}
                   triggerClassName="mt-1"
                 />
               )}

@@ -10,7 +10,13 @@ import { notifyUsers } from "@/lib/notifications";
 import type { ActionResult } from "@/lib/action-result";
 import type { AttendMode, EventFormat, EventRecurrence } from "@/lib/database.types";
 import { CIRCLE_TIME_ZONE } from "./format";
-import { createEventSchema, editEventSchema, eventHostSelfSchema, rsvpSchema } from "./schema";
+import {
+  createEventSchema,
+  deleteEventSchema,
+  editEventSchema,
+  eventHostSelfSchema,
+  rsvpSchema,
+} from "./schema";
 
 // claim_event_host() / release_event_host() raise these exact strings for
 // the cases a member can actually hit; anything else is an unexpected
@@ -380,6 +386,44 @@ export async function updateEvent(
 
   refresh();
   return { ok: true };
+}
+
+// Delete a meeting. events.delete is admin='all' / administrative='circle'
+// (never a student's 'own' — a member who scheduled a meeting can edit it
+// but not delete it). Deleting any occurrence of a recurring series removes
+// the whole series, so it's the same whichever one you started from.
+export async function deleteEvent(input: unknown): Promise<ActionResult> {
+  const parsed = deleteEventSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input." };
+  }
+
+  const lookupClient = await createClient();
+  const { data: current } = await lookupClient
+    .from("events")
+    .select("id, circle_id, created_by, parent_event_id")
+    .eq("id", parsed.data.eventId)
+    .single();
+  if (!current) {
+    return { ok: false, error: "That meeting no longer exists." };
+  }
+
+  const actor = await requirePermission("events.delete", {
+    circleId: current.circle_id,
+    profileId: current.created_by,
+  });
+  if (!actor.ok) return actor;
+
+  // Delete from the series root: the parent_event_id FK is ON DELETE
+  // CASCADE, so removing the root takes every generated occurrence with it.
+  const rootId = current.parent_event_id ?? current.id;
+  const { error } = await actor.supabase.from("events").delete().eq("id", rootId);
+  if (error) {
+    return { ok: false, error: "Could not delete the meeting." };
+  }
+
+  refresh();
+  redirect("/events");
 }
 
 // A single-format event only has one valid attend_mode — force it rather

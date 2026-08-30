@@ -8,21 +8,28 @@ import { claimEventHost, releaseEventHost } from "../actions";
 import { formatEventDayDate } from "../format";
 import { notifyActionResult } from "@/lib/notify";
 
-// The self-service "I'll host" affordance — a resolved member volunteering
-// themselves as host of a meeting, gated behind a confirm step that names
-// the exact date. Reused on the event detail page's host card and on the
-// dashboard's upcoming-meetings shortcut. When the viewer is already the
-// host it collapses to a plain "step down" button (no confirm needed).
+// Host management for one meeting, from the event page's host card and the
+// dashboard shortcut:
+//   - you're the host        -> "Step down as host"
+//   - no host yet            -> "I'll host" (confirm step naming the date)
+//   - someone else hosts +
+//     you can edit the event -> "Remove host" (admin / circle leader only)
+//   - someone else hosts +
+//     you can't              -> nothing
 export function HostVolunteerControl({
   eventId,
   startsAt,
   isCurrentHost = false,
+  hasOtherHost = false,
+  canManageHost = false,
   triggerVariant = "outline",
   triggerClassName,
 }: {
   eventId: string;
   startsAt: string;
   isCurrentHost?: boolean;
+  hasOtherHost?: boolean;
+  canManageHost?: boolean;
   triggerVariant?: React.ComponentProps<typeof Button>["variant"];
   triggerClassName?: string;
 }) {
@@ -47,6 +54,27 @@ export function HostVolunteerControl({
         }
       >
         {t("stepDownAsHost")}
+      </Button>
+    );
+  }
+
+  if (hasOtherHost) {
+    if (!canManageHost) return null;
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={pending}
+        className={triggerClassName}
+        onClick={() =>
+          startTransition(async () => {
+            const result = await releaseEventHost({ eventId });
+            notifyActionResult(result, t("hostRemovedToast"));
+          })
+        }
+      >
+        {t("removeHost")}
       </Button>
     );
   }
