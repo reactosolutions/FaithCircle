@@ -936,7 +936,9 @@ $$;
 -- can_host = true so there's no detour through Settings > Hosting first.
 -- SECURITY DEFINER because a plain member holds no events UPDATE grant —
 -- the checks here (resolved membership via is_event_member, not an online
--- meeting) are the gate. Replacing an existing host is allowed by design.
+-- meeting, no host already assigned) are the gate. One host per meeting:
+-- if someone else already claimed it, the current host must step down
+-- (release_event_host) or a leader must reassign before another can take it.
 create or replace function public.claim_event_host(target_event_id uuid)
 returns void
 language plpgsql security definer set search_path = public
@@ -944,6 +946,7 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_format public.event_format;
+  v_host uuid;
   v_addr text;
   v_lat double precision;
   v_lng double precision;
@@ -953,12 +956,15 @@ begin
     raise exception 'Not signed in.';
   end if;
 
-  select format into v_format from public.events where id = target_event_id;
+  select format, host_id into v_format, v_host from public.events where id = target_event_id;
   if v_format is null then
     raise exception 'That meeting no longer exists.';
   end if;
   if v_format = 'online' then
     raise exception 'An online meeting has no host.';
+  end if;
+  if v_host is not null and v_host <> v_uid then
+    raise exception 'This meeting already has a host.';
   end if;
   if not public.is_event_member(target_event_id) then
     raise exception 'You are not on this meeting''s guest list.';

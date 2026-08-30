@@ -141,10 +141,13 @@ a shortcut on the dashboard's upcoming-meetings list / hero for hostless meeting
 caller and only the caller, copies their saved `home_address`/`home_lat`/`home_lng`/
 `host_capacity` onto the meeting, and flips their `can_host` on so there's no detour
 through Settings > Hosting first. It requires the caller be a resolved member
-(`is_event_member`) of a non-online meeting; replacing an existing host is allowed. The
-UI gate always shows a confirm step naming the exact date. `release_event_host(event_id)`
-(current host only) clears `host_id`. Marking yourself available in Settings > Hosting +
-picking yourself in an edit form still works for meetings you own.
+(`is_event_member`) of a non-online meeting **with no host yet** — one host per meeting,
+so the function rejects a claim when someone else already holds it; the current host must
+`release_event_host(event_id)` (current-host-only) or a leader must reassign first. The
+"I'll host" control only renders when the slot is open (or, for the current host, as
+"Step down"), and always shows a confirm step naming the exact date. Marking yourself
+available in Settings > Hosting + picking yourself in an edit form still works for
+meetings you own.
 
 RSVP and attendance are ONE record (`event_rsvps`, one row per event+person) — "are you
 coming" and "did you come" are the same field. `response` doubles as the attendance

@@ -20,6 +20,7 @@ const HOST_RPC_MESSAGES = new Set([
   "Not signed in.",
   "That meeting no longer exists.",
   "An online meeting has no host.",
+  "This meeting already has a host.",
   "You are not on this meeting's guest list.",
   "You are not the host of this meeting.",
 ]);

@@ -51,15 +51,15 @@ export function NextGatheringHero({ event }: { event: EventLike | null }) {
           </span>
           <FormatBadge format={event.format} />
         </div>
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-          <Button className="w-full rounded-full sm:w-fit" render={<Link href={`/events/${event.id}`} />}>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button className="rounded-full" render={<Link href={`/events/${event.id}`} />}>
             {t("heroCta")}
           </Button>
           {event.host_id == null && event.format !== "online" && (
             <HostVolunteerControl
               eventId={event.id}
               startsAt={event.starts_at}
-              triggerClassName="w-full sm:w-fit"
+              triggerVariant="ghost"
             />
           )}
         </div>

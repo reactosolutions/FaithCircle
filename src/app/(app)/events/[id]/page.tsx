@@ -14,6 +14,7 @@ import {
   formatEventDate,
   formatEventTime,
   isAttendanceOpen,
+  mapsUrl,
   minutesUntilJoinOpens,
 } from "@/features/events/format";
 import type { MeetProvider } from "@/lib/database.types";
@@ -27,6 +28,7 @@ import { AuditHistorySection } from "@/features/settings/organization/components
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { hijri } from "@/lib/format";
 
 export default async function EventDetailPage({
@@ -144,14 +146,32 @@ export default async function EventDetailPage({
               <span className="font-medium text-foreground">
                 {host ? t("hostedBy", { name: host.full_name ?? t("unnamed") }) : t("noHostAssigned")}
               </span>
-              {event.address && <span className="text-muted-foreground">{event.address}</span>}
+              {event.address &&
+                (() => {
+                  const href = mapsUrl(event.address, event.lat, event.lng);
+                  return href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    >
+                      <Icon name="location_on" size={14} className="shrink-0" />
+                      {event.address}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">{event.address}</span>
+                  );
+                })()}
               {event.in_person_capacity != null && (
                 <span className={overCapacity ? "text-destructive" : "text-muted-foreground"}>
                   {t("inPersonSpots", { going: inPersonGoing, capacity: event.in_person_capacity })}
                   {overCapacity ? t("overCapacitySuffix") : ""}
                 </span>
               )}
-              {user && (
+              {/* One host per meeting: only offer "I'll host" when the slot
+                  is open, and "Step down" only to the current host. */}
+              {user && (!event.host_id || event.host_id === user.id) && (
                 <HostVolunteerControl
                   eventId={event.id}
                   startsAt={event.starts_at}

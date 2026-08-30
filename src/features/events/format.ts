@@ -26,6 +26,22 @@ export function formatEventDayDate(iso: string) {
   return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "EEEE, MMM d, yyyy");
 }
 
+// A Google Maps link for a meeting's location — prefers exact coordinates,
+// falls back to the free-text address. Null when there's nothing to point at.
+export function mapsUrl(
+  address: string | null,
+  lat: number | null,
+  lng: number | null,
+): string | null {
+  if (lat != null && lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  if (address && address.trim()) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  }
+  return null;
+}
+
 // yyyy-MM-dd in the circle's timezone — the key used to bucket events into
 // calendar day cells, so a 11pm Riyadh event doesn't land on the wrong
 // server-local day.
