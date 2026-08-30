@@ -154,15 +154,16 @@ export async function getCircleChartsData(circleId: string) {
   const supabase = await createClient();
   const now = new Date().toISOString();
 
-  const [{ data: pastEvents }, { data: memberRows }, { data: assignments }, { data: rsvpRows }, hostRotation] =
+  const [{ data: circleEventRows }, { data: memberRows }, { data: assignments }, { data: rsvpRows }, hostRotation] =
     await Promise.all([
+      // Every event for this circle, once — the three charts below each
+      // need a different slice (recent-8 past, all past, all-time), derived
+      // in memory rather than as three separate round trips.
       supabase
         .from("events")
         .select("id, title, starts_at")
         .eq("circle_id", circleId)
-        .lte("starts_at", now)
-        .order("starts_at", { ascending: false })
-        .limit(8),
+        .order("starts_at", { ascending: false }),
       supabase.from("circle_members").select("profile_id").eq("circle_id", circleId),
       supabase.from("assignments").select("id").eq("circle_id", circleId).eq("published", true),
       // event_rsvps_visible, not the base table — reason_category is
@@ -178,7 +179,11 @@ export async function getCircleChartsData(circleId: string) {
       suggestNextHost(circleId),
     ]);
 
-  const pastEventIds = (pastEvents ?? []).map((e) => e.id);
+  const allCircleEvents = circleEventRows ?? [];
+  const pastCircleEvents = allCircleEvents.filter((e) => e.starts_at <= now);
+  const pastEvents = pastCircleEvents.slice(0, 8); // already sorted starts_at desc
+  const pastEventIds = pastEvents.map((e) => e.id);
+  const pastCircleEventIds = new Set(pastCircleEvents.map((e) => e.id));
   const memberIds = (memberRows ?? []).map((r) => r.profile_id);
 
   const { data: attendanceRows } =
@@ -207,13 +212,6 @@ export async function getCircleChartsData(circleId: string) {
   // circle — shared by the format-mix donut and the per-member engagement
   // chart below. Scoped to past events since RSVP and attendance are one
   // record now; a future "going" RSVP isn't attendance.
-  const { data: pastCircleEventRows } = await supabase
-    .from("events")
-    .select("id")
-    .eq("circle_id", circleId)
-    .lte("starts_at", now);
-  const pastCircleEventIds = new Set((pastCircleEventRows ?? []).map((e) => e.id));
-
   const { data: allMemberAttendanceRowsRaw } =
     memberIds.length > 0 && pastCircleEventIds.size > 0
       ? await supabase
@@ -283,9 +281,7 @@ export async function getCircleChartsData(circleId: string) {
 
   // absence reasons — reason_category applies in both directions (declining
   // outright, or going online instead of in person on a hybrid meeting)
-  const circleEventIds = new Set(pastEventIds);
-  const { data: allCircleEvents } = await supabase.from("events").select("id").eq("circle_id", circleId);
-  for (const e of allCircleEvents ?? []) circleEventIds.add(e.id);
+  const circleEventIds = new Set(allCircleEvents.map((e) => e.id));
   const reasonCounts = new Map<string, number>();
   for (const row of rsvpRows ?? []) {
     if (!circleEventIds.has(row.event_id) || !row.reason_category) continue;

@@ -14,7 +14,6 @@ import {
   formatEventDate,
   formatEventTime,
   isAttendanceOpen,
-  mapsUrl,
   minutesUntilJoinOpens,
 } from "@/features/events/format";
 import type { MeetProvider } from "@/lib/database.types";
@@ -30,7 +29,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { hijri } from "@/lib/format";
+import { hijri, mapsUrl } from "@/lib/format";
 
 export default async function EventDetailPage({
   params,
@@ -75,6 +74,7 @@ export default async function EventDetailPage({
   ).length;
   const overCapacity =
     event.in_person_capacity != null && inPersonGoing > event.in_person_capacity;
+  const addressMapsUrl = event.address ? mapsUrl(event.address, event.lat, event.lng) : null;
 
   // Edit-form data (host/invite pickers, other circles) is only ever used
   // by the EditEventDialog rendered below — skip the extra round trips
@@ -160,23 +160,17 @@ export default async function EventDetailPage({
               <span className="font-medium text-foreground">
                 {host ? t("hostedBy", { name: host.full_name ?? t("unnamed") }) : t("noHostAssigned")}
               </span>
-              {event.address &&
-                (() => {
-                  const href = mapsUrl(event.address, event.lat, event.lng);
-                  return href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    >
-                      <Icon name="location_on" size={14} className="shrink-0" />
-                      {event.address}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">{event.address}</span>
-                  );
-                })()}
+              {addressMapsUrl && (
+                <a
+                  href={addressMapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                  <Icon name="location_on" size={14} className="shrink-0" />
+                  {event.address}
+                </a>
+              )}
               {event.in_person_capacity != null && (
                 <span className={overCapacity ? "text-destructive" : "text-muted-foreground"}>
                   {t("inPersonSpots", { going: inPersonGoing, capacity: event.in_person_capacity })}
@@ -254,11 +248,12 @@ export default async function EventDetailPage({
             <CardTitle className="text-base">{t("attendeesTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* reason/reason_category are admin-only now (see
-                schema.sql's event_rsvps_visible) — the data itself already
-                comes back redacted for a leader, but showReasons also
-                keeps the "why" line from rendering an empty gap for them. */}
-            <AttendeeList rsvps={rsvps} showReasons={profile?.role === "admin"} />
+            {/* event_rsvps_visible returns reason/reason_category to an
+                admin, the row's owner, and a leader who can record
+                attendance for the circle — everyone who reaches this
+                leader-only card — so the "why" line is always safe to show
+                here. */}
+            <AttendeeList rsvps={rsvps} showReasons={isLeader} />
           </CardContent>
         </Card>
       )}

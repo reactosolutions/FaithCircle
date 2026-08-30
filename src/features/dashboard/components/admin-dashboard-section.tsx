@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApprovalsNeededCard } from "./approvals-needed-card";
 import { UpcomingEventsList } from "./upcoming-events-list";
@@ -24,9 +25,9 @@ export function AdminDashboardSection({
           <CardHeader>
             <CardTitle className="text-base">{t("upcomingMeetingsTitle")}</CardTitle>
             <CardAction>
-              <Link href="/events/list" className="text-sm font-medium text-primary underline underline-offset-2">
+              <Button variant="link" size="sm" render={<Link href="/events/list" />}>
                 {t("viewAllMeetings")}
-              </Link>
+              </Button>
             </CardAction>
           </CardHeader>
           <CardContent className="p-0">

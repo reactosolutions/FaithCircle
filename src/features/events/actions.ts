@@ -515,10 +515,11 @@ export async function rsvpToEvent(
   return { ok: true };
 }
 
-// Put yourself forward as host of a meeting you're invited to. The
-// SECURITY DEFINER RPC is the real gate (resolved membership, format,
-// self-only); this guard just confirms there's a signed-in caller and the
-// events.host_self key resolves for their role.
+// claim_event_host / release_event_host are the same shape (parse the event
+// id, signed-in check, events.host_self guard, RPC + error map). Kept as
+// two full functions rather than a shared helper so each visibly calls
+// requirePermission() — the require-permission-guard lint rule wants that
+// in every exported action's own body.
 export async function claimEventHost(input: unknown): Promise<ActionResult> {
   const parsed = eventHostSelfSchema.safeParse(input);
   if (!parsed.success) {

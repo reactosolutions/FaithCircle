@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useTranslations } from "next-intl";
-import { ResponsiveDialog } from "@/components/ui/responsive-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { claimEventHost, releaseEventHost } from "../actions";
 import { formatEventDayDate } from "../format";
@@ -34,11 +34,13 @@ export function HostVolunteerControl({
   triggerClassName?: string;
 }) {
   const t = useTranslations("Events");
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [desktopOpen, setDesktopOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  if (isCurrentHost) {
+  // Both "step down" (you're the host) and "remove host" (an editor
+  // clearing someone else's) call releaseEventHost — same button, only the
+  // label and toast differ.
+  if (isCurrentHost || hasOtherHost) {
+    if (hasOtherHost && !canManageHost) return null;
     return (
       <Button
         type="button"
@@ -49,68 +51,27 @@ export function HostVolunteerControl({
         onClick={() =>
           startTransition(async () => {
             const result = await releaseEventHost({ eventId });
-            notifyActionResult(result, t("hostReleasedToast"));
+            notifyActionResult(result, isCurrentHost ? t("hostReleasedToast") : t("hostRemovedToast"));
           })
         }
       >
-        {t("stepDownAsHost")}
+        {isCurrentHost ? t("stepDownAsHost") : t("removeHost")}
       </Button>
     );
-  }
-
-  if (hasOtherHost) {
-    if (!canManageHost) return null;
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={pending}
-        className={triggerClassName}
-        onClick={() =>
-          startTransition(async () => {
-            const result = await releaseEventHost({ eventId });
-            notifyActionResult(result, t("hostRemovedToast"));
-          })
-        }
-      >
-        {t("removeHost")}
-      </Button>
-    );
-  }
-
-  function confirm() {
-    startTransition(async () => {
-      const result = await claimEventHost({ eventId });
-      notifyActionResult(result, t("hostClaimedToast"));
-      if (result.ok) {
-        setMobileOpen(false);
-        setDesktopOpen(false);
-      }
-    });
   }
 
   return (
-    <ResponsiveDialog
-      mobileOpen={mobileOpen}
-      onMobileOpenChange={setMobileOpen}
-      desktopOpen={desktopOpen}
-      onDesktopOpenChange={setDesktopOpen}
+    <ConfirmDialog
       triggerLabel={t("volunteerToHost")}
       triggerVariant={triggerVariant}
       triggerClassName={triggerClassName}
       title={t("hostConfirmTitle")}
       description={t("hostConfirmBody", { date: formatEventDayDate(startsAt) })}
-    >
-      <p className="text-sm text-muted-foreground">{t("hostConfirmDetail")}</p>
-      <Button
-        type="button"
-        onClick={confirm}
-        disabled={pending}
-        className="w-full rounded-full"
-      >
-        {pending ? t("saving") : t("hostConfirmYes")}
-      </Button>
-    </ResponsiveDialog>
+      body={<p className="text-sm text-muted-foreground">{t("hostConfirmDetail")}</p>}
+      confirmLabel={t("hostConfirmYes")}
+      pendingLabel={t("saving")}
+      successToast={t("hostClaimedToast")}
+      onConfirm={() => claimEventHost({ eventId })}
+    />
   );
 }

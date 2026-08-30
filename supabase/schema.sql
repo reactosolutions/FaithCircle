@@ -1414,30 +1414,28 @@ create view public.event_rsvps_visible
   with (security_invoker = true)
 as
 select
-  r.event_id,
-  r.profile_id,
-  r.response,
-  r.responded_at,
-  r.attend_mode,
-  r.note,
-  r.marked_by,
-  case
-    when public.is_admin()
+  v.event_id,
+  v.profile_id,
+  v.response,
+  v.responded_at,
+  v.attend_mode,
+  v.note,
+  v.marked_by,
+  case when v.can_see_reason then v.reason end as reason,
+  case when v.can_see_reason then v.reason_category end as reason_category
+from (
+  -- Join to events for the circle (one lookup per row, not a scalar
+  -- subquery per CASE) and resolve "can this caller see the reason" once.
+  select
+    r.*,
+    (
+      public.is_admin()
       or r.profile_id = auth.uid()
-      or public.has_permission(
-           auth.uid(), 'attendance.record',
-           (select e.circle_id from public.events e where e.id = r.event_id), null)
-    then r.reason
-  end as reason,
-  case
-    when public.is_admin()
-      or r.profile_id = auth.uid()
-      or public.has_permission(
-           auth.uid(), 'attendance.record',
-           (select e.circle_id from public.events e where e.id = r.event_id), null)
-    then r.reason_category
-  end as reason_category
-from public.event_rsvps r;
+      or public.has_permission(auth.uid(), 'attendance.record', e.circle_id, null)
+    ) as can_see_reason
+  from public.event_rsvps r
+  left join public.events e on e.id = r.event_id
+) v;
 
 grant select on public.event_rsvps_visible to authenticated;
 

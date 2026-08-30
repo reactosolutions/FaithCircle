@@ -73,14 +73,11 @@ export default async function EventsPage({
   // circles for administrative, and — since events.create is 'circle' for
   // students too — every circle a student belongs to (listViewerCircles
   // already returns exactly the viewer's circles under RLS).
-  const schedulableCircles =
-    viewer?.role === "admin"
-      ? circles
-      : viewer?.role === "administrative"
-        ? circles.filter((c) => c.leader_id === viewer?.id)
-        : viewer
-          ? circles
-          : [];
+  const schedulableCircles = !viewer
+    ? []
+    : viewer.role === "administrative"
+      ? circles.filter((c) => c.leader_id === viewer.id)
+      : circles; // admin and student both schedule into every circle they can see
   const canSchedule = schedulableCircles.length > 0;
   // Saudi convention (Sunday) by default, overridable in Preferences — never
   // left to date-fns's own Monday-first default.

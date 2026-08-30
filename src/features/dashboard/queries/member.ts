@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { pastEventIdSet } from "@/features/events/queries";
 
 // Shared by the student view and the leader view — an administrative user
 // answers homework and has upcoming meetings just like a student, per
@@ -37,17 +38,11 @@ export async function getMemberDashboardData(profileId: string) {
     supabase.from("attendance").select("status, event_id").eq("profile_id", profileId),
   ]);
 
-  const pastAttendance = await (async () => {
-    const eventIds = (attendanceRows ?? []).map((r) => r.event_id);
-    if (eventIds.length === 0) return [];
-    const { data: pastEvents } = await supabase
-      .from("events")
-      .select("id")
-      .in("id", eventIds)
-      .lt("starts_at", now);
-    const pastIds = new Set((pastEvents ?? []).map((e) => e.id));
-    return (attendanceRows ?? []).filter((r) => pastIds.has(r.event_id));
-  })();
+  const pastIds = await pastEventIdSet(
+    supabase,
+    (attendanceRows ?? []).map((r) => r.event_id),
+  );
+  const pastAttendance = (attendanceRows ?? []).filter((r) => pastIds.has(r.event_id));
 
   const assignmentIds = (assignments ?? []).map((a) => a.id);
   const { data: mySubmissions } =

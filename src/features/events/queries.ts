@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { statusFromResponse } from "@/features/attendance/mapping";
 import type { Database } from "@/lib/database.types";
 
 type EventRow = Database["public"]["Tables"]["events"]["Row"];
@@ -17,6 +18,22 @@ export const listViewerCircles = cache(async () => {
   if (error) throw error;
   return data;
 });
+
+// Of the given event ids, which have already started. RSVP and attendance
+// are one record now, so the dashboards use this to keep a future "going"
+// RSVP from counting as attendance today.
+export async function pastEventIdSet(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventIds: string[],
+): Promise<Set<string>> {
+  if (eventIds.length === 0) return new Set();
+  const { data } = await supabase
+    .from("events")
+    .select("id")
+    .in("id", eventIds)
+    .lt("starts_at", new Date().toISOString());
+  return new Set((data ?? []).map((e) => e.id));
+}
 
 // Events for the combined "all circles" calendar = events owned by any of
 // these circles ∪ events any of them have been invited to via
@@ -82,27 +99,36 @@ export async function getEvent(id: string) {
     { data: rsvpRows },
     { data: invitedCircleRows },
     { data: inviteeRows },
-    { data: attendanceRows },
   ] = await Promise.all([
     supabase.from("circles").select("id, name, leader_id").eq("id", event.circle_id).single(),
     event.host_id
       ? supabase.from("profiles").select("id, full_name").eq("id", event.host_id).single()
       : Promise.resolve({ data: null }),
     // event_rsvps_visible, not the base table — reason/reason_category are
-    // admin-only (see schema.sql's event_rsvps_visible comment); the view
-    // nulls them out for anyone else's row, including a leader who can
-    // otherwise see this event fine via events.edit.
+    // narrower than the rest of the row (see schema.sql's comment); the
+    // view nulls them out for a viewer who isn't the owner, an admin, or a
+    // leader who can record attendance for the circle. RSVP and attendance
+    // are one record, so this same read also yields the "did they attend"
+    // status below.
     supabase
       .from("event_rsvps_visible")
       .select("profile_id, response, attend_mode, reason, reason_category")
       .eq("event_id", id),
     supabase.from("event_circles").select("circle_id").eq("event_id", id),
     supabase.from("event_invitees").select("profile_id").eq("event_id", id),
-    // attendance_select's RLS only ever returns rows the caller is allowed
-    // to see — for a student that's their own row alone (attendance.view's
-    // 'own' scope), so no extra filtering by viewer id is needed here.
-    supabase.from("attendance").select("profile_id, status, mode").eq("event_id", id),
   ]);
+
+  // Attendance = the same participation rows, seen through the present /
+  // absent / excused lens (the reason redaction above only affects OTHER
+  // people's rows; the one consumer — the viewer's own attendance control —
+  // reads its own row, which is never redacted).
+  const attendanceRows = (rsvpRows ?? [])
+    .map((row) => ({
+      profile_id: row.profile_id,
+      status: statusFromResponse(row.response, row.reason, row.reason_category),
+      mode: row.attend_mode,
+    }))
+    .filter((row) => row.status !== null);
 
   // Names for RSVPs/invitees and labels for invited circles are joined here
   // in JS rather than via a PostgREST embedded select — this hand-written
