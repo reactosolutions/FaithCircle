@@ -4,6 +4,7 @@ import { formatEventDate, formatEventTime } from "@/features/events/format";
 import { FormatBadge } from "@/features/events/components/format-badge";
 import { HostVolunteerControl } from "@/features/events/components/host-volunteer-control";
 import { Button } from "@/components/ui/button";
+import { CollapsibleText } from "@/components/ui/collapsible-text";
 import { Icon } from "@/components/ui/icon";
 import { IconCircle } from "@/components/ui/icon-circle";
 
@@ -43,7 +44,9 @@ export function NextGatheringHero({ event }: { event: EventLike | null }) {
           <Icon name="event" size={16} />
           {t("heroBadge")}
         </span>
-        <h2 className="font-heading text-2xl font-bold text-foreground md:text-3xl">{event.title}</h2>
+        <h2 className="font-heading text-2xl font-bold text-foreground md:text-3xl">
+          <CollapsibleText text={event.title} max={70} buttonClassName="text-base font-semibold" />
+        </h2>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <Icon name="schedule" size={18} className="text-primary" />

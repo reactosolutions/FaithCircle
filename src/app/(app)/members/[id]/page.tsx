@@ -11,7 +11,8 @@ import { StatusBadge } from "@/features/members/components/status-badge";
 import { AttendanceHistory } from "@/features/attendance/components/attendance-history";
 import { SubmissionHistory } from "@/features/homework/components/submission-history";
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EditMemberDialog } from "@/features/members/components/edit-member-dialog";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function MemberDetailPage({
   params,
@@ -47,6 +48,18 @@ export default async function MemberDetailPage({
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">{member.full_name || member.email}</CardTitle>
+          {isAdmin && (
+            <CardAction>
+              <EditMemberDialog
+                profileId={id}
+                fullName={member.full_name}
+                phone={member.phone}
+                showAddress
+                homeAddress={member.home_address}
+                homeMapsUrl={member.home_maps_url}
+              />
+            </CardAction>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-2">

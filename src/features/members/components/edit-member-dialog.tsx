@@ -16,12 +16,20 @@ export function EditMemberDialog({
   profileId,
   fullName,
   phone,
+  showAddress = false,
+  homeAddress = null,
+  homeMapsUrl = null,
   mobileOpen: mobileOpenProp,
   onMobileOpenChange: onMobileOpenChangeProp,
 }: {
   profileId: string;
   fullName: string | null;
   phone: string | null;
+  // The members-list Edit dialog leaves this off (name + phone only); the
+  // member-detail page turns it on so an admin can edit the address there.
+  showAddress?: boolean;
+  homeAddress?: string | null;
+  homeMapsUrl?: string | null;
   // Externally controlled by a condensed mobile row's "more actions" menu —
   // when provided, the Drawer's own trigger button is hidden and this
   // component just reflects the caller's state (see ResponsiveDialog's
@@ -66,6 +74,25 @@ export function EditMemberDialog({
           <Label htmlFor="edit-phone">{t("phoneLabel")}</Label>
           <PhoneInput id="edit-phone" name="phone" defaultValue={phone} />
         </div>
+        {showAddress && (
+          <>
+            <input type="hidden" name="editAddress" value="1" />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="edit-homeAddress">{t("homeAddressLabel")}</Label>
+              <Input id="edit-homeAddress" name="homeAddress" defaultValue={homeAddress ?? ""} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="edit-homeMapsUrl">{t("mapsLinkLabel")}</Label>
+              <Input
+                id="edit-homeMapsUrl"
+                name="homeMapsUrl"
+                type="url"
+                inputMode="url"
+                defaultValue={homeMapsUrl ?? ""}
+              />
+            </div>
+          </>
+        )}
         {state && !state.ok && (
           <p role="alert" className="text-sm text-destructive">
             {state.error}

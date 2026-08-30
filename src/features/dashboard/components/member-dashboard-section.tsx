@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UpcomingEventsList } from "./upcoming-events-list";
 import { PendingHomeworkList } from "./pending-homework-list";
 import { NextGatheringHero } from "./next-gathering-hero";
@@ -81,6 +82,11 @@ export function MemberDashboardSection({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t("moreUpcomingMeetings")}</CardTitle>
+            <CardAction>
+              <Link href="/events/list" className="text-sm font-medium text-primary underline underline-offset-2">
+                {t("viewAllMeetings")}
+              </Link>
+            </CardAction>
           </CardHeader>
           <CardContent className="p-0">
             <UpcomingEventsList events={restEvents} />

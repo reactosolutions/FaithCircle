@@ -394,10 +394,17 @@ export async function updateMemberProfile(
   _prevState: ActionResult | undefined,
   formData: FormData,
 ): Promise<ActionResult> {
+  // The address fields only exist on the member-detail Edit form (an admin
+  // editing someone else); the members-list Edit dialog omits them. The
+  // hidden `editAddress` flag says "this form owns the address" so an empty
+  // value clears it, rather than the members-list form silently blanking it.
+  const editAddress = formData.get("editAddress") === "1";
   const parsed = updateMemberProfileSchema.safeParse({
     profileId: formData.get("profileId"),
     fullName: formData.get("fullName"),
     phone: formData.get("phone"),
+    homeAddress: editAddress ? formData.get("homeAddress") : undefined,
+    homeMapsUrl: editAddress ? formData.get("homeMapsUrl") : undefined,
   });
 
   if (!parsed.success) {
@@ -409,7 +416,16 @@ export async function updateMemberProfile(
 
   const { error } = await actor.supabase
     .from("profiles")
-    .update({ full_name: parsed.data.fullName, phone: parsed.data.phone ?? null })
+    .update({
+      full_name: parsed.data.fullName,
+      phone: parsed.data.phone ?? null,
+      ...(editAddress
+        ? {
+            home_address: parsed.data.homeAddress ?? null,
+            home_maps_url: parsed.data.homeMapsUrl ?? null,
+          }
+        : {}),
+    })
     .eq("id", parsed.data.profileId);
 
   if (error) {

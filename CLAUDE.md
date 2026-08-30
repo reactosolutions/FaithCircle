@@ -205,8 +205,9 @@ that losing those is fine) — safe to delete over.
 ## Schema (Supabase)
 - profiles — id (= auth.users.id), full_name, email, phone, role, avatar_url,
   can_host, home_address, home_maps_url, home_lat, home_lng, host_capacity, status
-  (home_address + home_maps_url are editable by every role in Settings > Hosting,
-  not gated behind can_host)
+  (home_address + home_maps_url: a person edits their OWN in Settings > Hosting —
+  not gated behind can_host; an admin edits ANYONE's via the member-detail Edit
+  dialog, `members.edit` 'all'. `administrative` can't edit either.)
 - circles — id, name, description, leader_id, created_at
 - circle_members — circle_id, profile_id, joined_at  (composite PK)
 - events — id, circle_id, title, description, starts_at, ends_at, host_id,
