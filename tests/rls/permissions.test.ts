@@ -168,6 +168,22 @@ describe("has_permission() — representative matrix rows", () => {
     expect(othersMeeting).toBe(false);
   });
 
+  it("events.host_self is 'own' scope for every role — anyone may volunteer themselves as host", async () => {
+    for (const [client, id, label] of [
+      [admin, adminId, "admin"],
+      [leader, leaderId, "administrative"],
+      [student, studentId, "student"],
+    ] as const) {
+      const { data, error } = await client.rpc("has_permission", {
+        actor: id,
+        key: "events.host_self",
+        target_profile: id,
+      });
+      expect(error, `${label}: unexpected error`).toBeNull();
+      expect(data, `${label} should be able to volunteer themselves as host`).toBe(true);
+    }
+  });
+
   it("submissions.create is 'own' scope for all three roles — the author/answerer rule", async () => {
     for (const [client, id, label] of [
       [admin, adminId, "admin"],

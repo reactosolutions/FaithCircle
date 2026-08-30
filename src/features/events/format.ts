@@ -19,6 +19,13 @@ export function formatEventTime(iso: string) {
   return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "h:mm a");
 }
 
+// Weekday + date in the circle's timezone — for confirm prompts that need
+// to name "this specific date and day" (e.g. "you're hosting on Monday,
+// Aug 31, 2026").
+export function formatEventDayDate(iso: string) {
+  return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "EEEE, MMM d, yyyy");
+}
+
 // yyyy-MM-dd in the circle's timezone — the key used to bucket events into
 // calendar day cells, so a 11pm Riyadh event doesn't land on the wrong
 // server-local day.

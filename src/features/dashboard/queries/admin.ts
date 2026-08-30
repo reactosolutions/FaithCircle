@@ -58,7 +58,7 @@ export async function getAdminRecentActivity(limit = 6) {
     await Promise.all([
       supabase
         .from("events")
-        .select("id, title, starts_at, format")
+        .select("id, title, starts_at, format, host_id")
         .gte("starts_at", now)
         .order("starts_at", { ascending: true })
         .limit(limit),

@@ -39,6 +39,7 @@ export type PermissionKey =
   | "events.edit"
   | "events.delete"
   | "events.rsvp"
+  | "events.host_self"
   | "attendance.view"
   | "attendance.record"
   | "assignments.view"
@@ -422,6 +423,14 @@ export interface Database {
       };
       change_member_role: {
         Args: { target_profile: string; new_role: UserRole; reason: string };
+        Returns: undefined;
+      };
+      claim_event_host: {
+        Args: { target_event_id: string };
+        Returns: undefined;
+      };
+      release_event_host: {
+        Args: { target_event_id: string };
         Returns: undefined;
       };
     };

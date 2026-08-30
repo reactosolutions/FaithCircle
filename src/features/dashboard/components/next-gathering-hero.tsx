@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { formatEventDate, formatEventTime } from "@/features/events/format";
 import { FormatBadge } from "@/features/events/components/format-badge";
+import { HostVolunteerControl } from "@/features/events/components/host-volunteer-control";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { IconCircle } from "@/components/ui/icon-circle";
@@ -11,6 +12,7 @@ interface EventLike {
   title: string;
   starts_at: string;
   format: "in_person" | "online" | "hybrid";
+  host_id?: string | null;
 }
 
 // The one dominant hero element every dashboard page needs (per CLAUDE.md's
@@ -49,10 +51,17 @@ export function NextGatheringHero({ event }: { event: EventLike | null }) {
           </span>
           <FormatBadge format={event.format} />
         </div>
-        <div className="mt-2">
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
           <Button className="w-full rounded-full sm:w-fit" render={<Link href={`/events/${event.id}`} />}>
             {t("heroCta")}
           </Button>
+          {event.host_id == null && event.format !== "online" && (
+            <HostVolunteerControl
+              eventId={event.id}
+              startsAt={event.starts_at}
+              triggerClassName="w-full sm:w-fit"
+            />
+          )}
         </div>
       </div>
     </div>

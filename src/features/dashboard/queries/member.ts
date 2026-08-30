@@ -20,7 +20,7 @@ export async function getMemberDashboardData(profileId: string) {
   const [{ data: upcomingEvents }, { data: assignments }, { data: attendanceRows }] = await Promise.all([
     supabase
       .from("events")
-      .select("id, title, starts_at, format, circle_id")
+      .select("id, title, starts_at, format, circle_id, host_id")
       .in("circle_id", circleIds)
       .gte("starts_at", now)
       .order("starts_at")

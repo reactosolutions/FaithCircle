@@ -335,6 +335,7 @@ insert into public.permissions (key, resource, action, description) values
   ('events.edit', 'events', 'edit', 'Edit a meeting'),
   ('events.delete', 'events', 'delete', 'Cancel/delete a meeting'),
   ('events.rsvp', 'events', 'rsvp', 'RSVP to a meeting'),
+  ('events.host_self', 'events', 'host_self', 'Volunteer yourself as a meeting host'),
   ('attendance.view', 'attendance', 'view', 'See attendance records'),
   ('attendance.record', 'attendance', 'record', 'Take attendance'),
   ('assignments.view', 'assignments', 'view', 'See homework assignments'),
@@ -408,6 +409,14 @@ insert into public.role_permissions (role, permission_key, scope) values
   ('admin', 'events.rsvp', 'own'),
   ('administrative', 'events.rsvp', 'own'),
   ('student', 'events.rsvp', 'own'),
+
+  -- Self-service: put YOURSELF forward as host on a meeting you're invited
+  -- to. 'own' for every role — the claim_event_host() function does the
+  -- membership/format checks; this key just gates the UI mirror + the
+  -- Server Action guard.
+  ('admin', 'events.host_self', 'own'),
+  ('administrative', 'events.host_self', 'own'),
+  ('student', 'events.host_self', 'own'),
 
   ('admin', 'attendance.view', 'all'),
   ('administrative', 'attendance.view', 'circle'),
@@ -857,6 +866,83 @@ begin
   update public.profiles set role = new_role where id = target_profile;
 end;
 $$;
+
+-- Volunteer YOURSELF as the host of a meeting you're on the guest list for.
+-- The narrow, self-service counterpart to events.edit: it only ever sets
+-- host_id to the caller (never anyone else), plus copies the caller's own
+-- saved home address / capacity onto the meeting and marks them
+-- can_host = true so there's no detour through Settings > Hosting first.
+-- SECURITY DEFINER because a plain member holds no events UPDATE grant —
+-- the checks here (resolved membership via is_event_member, not an online
+-- meeting) are the gate. Replacing an existing host is allowed by design.
+create or replace function public.claim_event_host(target_event_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_format public.event_format;
+  v_addr text;
+  v_lat double precision;
+  v_lng double precision;
+  v_cap integer;
+begin
+  if v_uid is null then
+    raise exception 'Not signed in.';
+  end if;
+
+  select format into v_format from public.events where id = target_event_id;
+  if v_format is null then
+    raise exception 'That meeting no longer exists.';
+  end if;
+  if v_format = 'online' then
+    raise exception 'An online meeting has no host.';
+  end if;
+  if not public.is_event_member(target_event_id) then
+    raise exception 'You are not on this meeting''s guest list.';
+  end if;
+
+  select home_address, home_lat, home_lng, host_capacity
+    into v_addr, v_lat, v_lng, v_cap
+  from public.profiles where id = v_uid;
+
+  update public.profiles
+    set can_host = true
+    where id = v_uid and can_host is distinct from true;
+
+  update public.events set
+    host_id = v_uid,
+    address = coalesce(v_addr, address),
+    lat = case when v_addr is not null then v_lat else lat end,
+    lng = case when v_addr is not null then v_lng else lng end,
+    in_person_capacity = coalesce(v_cap, in_person_capacity)
+  where id = target_event_id;
+end;
+$$;
+
+-- Step back down. Only the meeting's current host may, and it just clears
+-- host_id — the address is left as-is for a leader to repoint.
+create or replace function public.release_event_host(target_event_id uuid)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_host uuid;
+begin
+  if v_uid is null then
+    raise exception 'Not signed in.';
+  end if;
+  select host_id into v_host from public.events where id = target_event_id;
+  if v_host is distinct from v_uid then
+    raise exception 'You are not the host of this meeting.';
+  end if;
+  update public.events set host_id = null where id = target_event_id;
+end;
+$$;
+
+grant execute on function public.claim_event_host(uuid) to authenticated;
+grant execute on function public.release_event_host(uuid) to authenticated;
 
 -- ============================================================================
 -- Trigger: auto-create a profile row when a new auth user signs up

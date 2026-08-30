@@ -134,3 +134,7 @@ export const rsvpSchema = z
     error: "Let them know why you can't make it.",
     path: ["reason"],
   });
+
+// Self-service host claim / release — just the event id; the SECURITY
+// DEFINER function does every real check.
+export const eventHostSelfSchema = z.object({ eventId: z.uuid() });

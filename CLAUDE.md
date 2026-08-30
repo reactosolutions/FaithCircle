@@ -112,6 +112,7 @@ Permission matrix (seeded into `role_permissions`):
 | `events.edit` | all | circle | own |
 | `events.delete` | all | circle | — |
 | `events.rsvp` | own | own | own |
+| `events.host_self` | own | own | own |
 | `attendance.view` | all | circle | own |
 | `attendance.record` | all | circle | own |
 | `assignments.create` | all | circle | — |
@@ -131,11 +132,20 @@ can never manufacture a peer or a superior.
 schedule a meeting for a circle they belong to, then fully edit it, invite other
 circles/people to it, and see its RSVP headcount — all gated by `events.created_by`
 matching them (`events.edit`'s `own` scope). They cannot touch a meeting a leader
-scheduled, and there is no student `events.delete`. A member who needs to host at their
-home marks themselves available in Settings > Hosting (the `can_host` toggle, open to
-every role) and then picks themselves in the host field of a meeting they created —
-setting `host_id` to yourself is not a separate permission. Pre-existing meetings are
-backfilled so `created_by` is the owning circle's primary leader.
+scheduled, and there is no student `events.delete`. Pre-existing meetings are backfilled
+so `created_by` is the owning circle's primary leader.
+
+`events.host_self` (`own` for every role) is the separate, narrower path for hosting a
+meeting you did NOT create. The "I'll host" control (event detail page's host card, and
+a shortcut on the dashboard's upcoming-meetings list / hero for hostless meetings) calls
+`claim_event_host(event_id)` — a `SECURITY DEFINER` function that sets `host_id` to the
+caller and only the caller, copies their saved `home_address`/`home_lat`/`home_lng`/
+`host_capacity` onto the meeting, and flips their `can_host` on so there's no detour
+through Settings > Hosting first. It requires the caller be a resolved member
+(`is_event_member`) of a non-online meeting; replacing an existing host is allowed. The
+UI gate always shows a confirm step naming the exact date. `release_event_host(event_id)`
+(current host only) clears `host_id`. Marking yourself available in Settings > Hosting +
+picking yourself in an edit form still works for meetings you own.
 
 `attendance.record`'s `own` scope for `student` is a deliberate self-check-in exception:
 a student may mark their own attendance row, but only for an event they're a resolved

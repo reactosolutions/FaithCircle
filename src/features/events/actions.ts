@@ -10,7 +10,25 @@ import { notifyUsers } from "@/lib/notifications";
 import type { ActionResult } from "@/lib/action-result";
 import type { AttendMode, EventFormat, EventRecurrence } from "@/lib/database.types";
 import { CIRCLE_TIME_ZONE } from "./format";
-import { createEventSchema, editEventSchema, rsvpSchema } from "./schema";
+import { createEventSchema, editEventSchema, eventHostSelfSchema, rsvpSchema } from "./schema";
+
+// claim_event_host() / release_event_host() raise these exact strings for
+// the cases a member can actually hit; anything else is an unexpected
+// Postgres error and gets a generic message (never surfaced raw, per
+// CLAUDE.md).
+const HOST_RPC_MESSAGES = new Set([
+  "Not signed in.",
+  "That meeting no longer exists.",
+  "An online meeting has no host.",
+  "You are not on this meeting's guest list.",
+  "You are not the host of this meeting.",
+]);
+
+function hostRpcError(message: string | undefined): string {
+  return message && HOST_RPC_MESSAGES.has(message)
+    ? message
+    : "Could not update the host. Please try again.";
+}
 
 function nextOccurrenceStarts(startsAt: Date, recurrence: EventRecurrence, count: number) {
   const step = (date: Date) => {
@@ -444,6 +462,56 @@ export async function rsvpToEvent(
 
   if (error) {
     return { ok: false, error: "Could not save your RSVP." };
+  }
+
+  refresh();
+  return { ok: true };
+}
+
+// Put yourself forward as host of a meeting you're invited to. The
+// SECURITY DEFINER RPC is the real gate (resolved membership, format,
+// self-only); this guard just confirms there's a signed-in caller and the
+// events.host_self key resolves for their role.
+export async function claimEventHost(input: unknown): Promise<ActionResult> {
+  const parsed = eventHostSelfSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input." };
+  }
+  const user = await getCachedUser();
+  if (!user) {
+    return { ok: false, error: "You need to sign in again." };
+  }
+  const actor = await requirePermission("events.host_self", { profileId: user.id });
+  if (!actor.ok) return actor;
+
+  const { error } = await actor.supabase.rpc("claim_event_host", {
+    target_event_id: parsed.data.eventId,
+  });
+  if (error) {
+    return { ok: false, error: hostRpcError(error.message) };
+  }
+
+  refresh();
+  return { ok: true };
+}
+
+export async function releaseEventHost(input: unknown): Promise<ActionResult> {
+  const parsed = eventHostSelfSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: "Invalid input." };
+  }
+  const user = await getCachedUser();
+  if (!user) {
+    return { ok: false, error: "You need to sign in again." };
+  }
+  const actor = await requirePermission("events.host_self", { profileId: user.id });
+  if (!actor.ok) return actor;
+
+  const { error } = await actor.supabase.rpc("release_event_host", {
+    target_event_id: parsed.data.eventId,
+  });
+  if (error) {
+    return { ok: false, error: hostRpcError(error.message) };
   }
 
   refresh();

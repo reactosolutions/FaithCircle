@@ -21,6 +21,7 @@ import { SelfAttendanceControl } from "@/features/attendance/components/self-att
 import { FormatBadge } from "@/features/events/components/format-badge";
 import { AttendeeList } from "@/features/events/components/attendee-list";
 import { EditEventDialog } from "@/features/events/components/edit-event-dialog";
+import { HostVolunteerControl } from "@/features/events/components/host-volunteer-control";
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -138,7 +139,7 @@ export default async function EventDetailPage({
           )}
 
           {event.format !== "online" && (
-            <div className="flex flex-col gap-1 rounded-lg border border-border p-3 text-sm">
+            <div className="flex flex-col items-start gap-1 rounded-lg border border-border p-3 text-sm">
               <span className="font-medium text-foreground">
                 {host ? t("hostedBy", { name: host.full_name ?? t("unnamed") }) : t("noHostAssigned")}
               </span>
@@ -148,6 +149,14 @@ export default async function EventDetailPage({
                   {t("inPersonSpots", { going: inPersonGoing, capacity: event.in_person_capacity })}
                   {overCapacity ? t("overCapacitySuffix") : ""}
                 </span>
+              )}
+              {user && (
+                <HostVolunteerControl
+                  eventId={event.id}
+                  startsAt={event.starts_at}
+                  isCurrentHost={event.host_id === user.id}
+                  triggerClassName="mt-1"
+                />
               )}
             </div>
           )}
