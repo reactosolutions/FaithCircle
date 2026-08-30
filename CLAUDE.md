@@ -111,7 +111,6 @@ Permission matrix (seeded into `role_permissions`):
 | `events.create` | all | circle | circle |
 | `events.edit` | all | circle | own |
 | `events.delete` | all | circle | — |
-| `events.rsvp` | own | own | own |
 | `events.host_self` | own | own | own |
 | `attendance.view` | all | circle | own |
 | `attendance.record` | all | circle | own |
@@ -147,12 +146,26 @@ UI gate always shows a confirm step naming the exact date. `release_event_host(e
 (current host only) clears `host_id`. Marking yourself available in Settings > Hosting +
 picking yourself in an edit form still works for meetings you own.
 
-`attendance.record`'s `own` scope for `student` is a deliberate self-check-in exception:
-a student may mark their own attendance row, but only for an event they're a resolved
-member of (`event_circles` ∪ `event_invitees`) — never anyone else's. There is no
-separate "self-reported" column; a student's self-mark and a leader's later correction
-write the same row, so whichever happened last wins. That's an accepted tradeoff, not a
-gap to fix.
+RSVP and attendance are ONE record (`event_rsvps`, one row per event+person) — "are you
+coming" and "did you come" are the same field. `response` doubles as the attendance
+status: `going` = present, `not_going` = absent, `not_going` + a reason = excused;
+`tentative`/`no_response` = no mark. `attend_mode` is intent before the meeting, actual
+after. The old `attendance` table is now a read-only compatibility VIEW over `event_rsvps`
+in the present/absent/excused shape (so existing readers — the attendance sheet, member
+history, dashboards, CSV export — are untouched); writes go through `event_rsvps` via the
+attendance Server Actions. Consequences of the merge, all accepted: no separate no-show
+signal ("said going, marked absent" collapses to `not_going`), no distinct `excused`
+value, one timestamp (`responded_at`) instead of separate respond/mark times, and no
+date lock — the record is editable any time, last write wins.
+
+`attendance.record` is the single write permission for that record (`events.rsvp` was
+retired into it). `own` scope for every role covers your own row for a meeting you're a
+resolved member of (`event_circles` ∪ `event_invitees`) — self-RSVP and self-check-in
+both. `circle`/`all` scope (leaders/admin) covers anyone's row in their circle. On the
+event page the member sees `RsvpControl` before the meeting day and `SelfAttendanceControl`
+from the meeting day on; both write the same row. `marked_by` is null for a plain
+self-RSVP, set once someone records attendance — that's what "recent attendance" and
+`deleteMember`'s history check key on.
 
 `members.delete` is a genuine hard delete (`auth.users`, cascading to `profiles` and
 everything keyed off it) — distinct from `members.deactivate`, which only ever flips a
@@ -189,9 +202,11 @@ that losing those is fine) — safe to delete over.
 - circle_members — circle_id, profile_id, joined_at  (composite PK)
 - events — id, circle_id, title, description, starts_at, ends_at, host_id,
   address, lat, lng, recurrence, parent_event_id, status
-- event_rsvps — event_id, profile_id, response ('going'|'not_going'|'no_response'), responded_at
-- attendance — id, event_id, profile_id, status ('present'|'absent'|'excused'),
-  note, marked_by, marked_at  (unique on event_id + profile_id)
+- event_rsvps — event_id, profile_id, response ('going'|'not_going'|'tentative'|'no_response'),
+  responded_at, attend_mode, reason, reason_category, note, marked_by  (composite PK) —
+  the single participation record (RSVP + attendance merged)
+- attendance — read-only VIEW over event_rsvps (id, event_id, profile_id,
+  status 'present'|'absent'|'excused', note, marked_by, marked_at, mode); no base table
 - assignments — id, circle_id, title, instructions, attachment_url, due_at,
   created_by, points, published
 - submissions — id, assignment_id, profile_id, answer_text, attachment_url,
@@ -239,23 +254,21 @@ event_rsvps — added columns:
   that input, so it's checked in the Server Action instead, right where attend_mode
   is resolved.
 
-  reason/reason_category are admin-only to READ — not leader-visible, even though the
-  RSVP row itself still is (a circle leader needs response/attend_mode for headcount and
-  room planning; that's unchanged). RLS can only grant or deny a whole row, never redact
-  one column while exposing the rest, so this is enforced via a view instead:
-  `event_rsvps_visible` (declared `security_invoker = true`, required rather than
-  optional — without it the view would run with the privileges of whoever owns it,
-  bypassing RLS regardless of who's actually querying) nulls out reason/reason_category
-  unless the caller is admin or it's their own row. Every read of another profile's
-  reason for DISPLAY must go through this view, never the event_rsvps table directly —
-  querying the base table instead is the mistake that would silently leak reasons back
-  to leaders. This intentionally means the leader dashboard's "Absence reasons" chart
-  (see Dashboards below) reads back empty for administrative viewers now; that's the
-  accepted cost of this scope, not a bug to fix.
+  reason/reason_category are narrower to READ than the rest of the row: an admin, the
+  row's own owner, and a leader who can record attendance for that circle
+  (`attendance.record`) see them; a leader still sees response/attend_mode/note for
+  headcount and room planning. RLS can only grant or deny a whole row, never redact one
+  column, so this is enforced via a view instead: `event_rsvps_visible` (declared
+  `security_invoker = true`, required rather than optional — without it the view would
+  run with the privileges of whoever owns it, bypassing RLS regardless of who's actually
+  querying) nulls out reason/reason_category for anyone outside that set. Every read of
+  another profile's reason for DISPLAY must go through this view, never the event_rsvps
+  table directly — querying the base table instead is the mistake that would silently
+  leak reasons.
 
-attendance — added column:
-- mode ('in_person' | 'online' | null) — how they ACTUALLY attended, which may differ
-  from what they RSVP'd. Never copy the RSVP value in as final.
+attend_mode on event_rsvps carries double duty: how they *expect* to attend before the
+meeting, how they *actually* did after. The attendance write paths set it explicitly;
+it's never silently copied from one meaning to the other.
 
 Membership resolution: the set of people who may see and RSVP to an event =
 members of any circle in event_circles ∪ rows in event_invitees. Write this once as a
@@ -353,12 +366,13 @@ Retention: partition audit_log by month. Keep 24 months hot, archive older to st
   - students read events/assignments only for circles they belong to, and may create
     events in those circles — then edit/manage only the ones they created
     (`events.created_by`)
-  - students read/write only their own rsvp, attendance row (self-check-in — see
-    `attendance.record`'s `own` scope above), and submissions
+  - students read/write only their own participation row (`event_rsvps` — RSVP and
+    attendance merged; `attendance.record`'s `own` scope, see above) and submissions
   - administrative read/write everything inside circles they lead, plus their own submissions
   - admin bypasses via the helper function
 - Seed script `supabase/seed.sql` with one circle, one admin, two administrative,
-  six students, three past events with attendance, and two assignments.
+  six students, three past events with participation rows (`event_rsvps`), and two
+  assignments.
 
 ## Design system
 
@@ -458,6 +472,12 @@ palette: primary teal #15473E, indigo #4C5FA8 (`--info`, also "online" status co
 logo mint #89D2C5 (`--accent`) for highlights only — never for a data series carrying
 text labels, since the pastel mint is too light against a light background to pass
 contrast for text.
+
+Since RSVP and attendance are one record, every "attendance" figure below means
+`event_rsvps.response = 'going'` on a meeting whose `starts_at` is in the past — a future
+"going" RSVP is intent, not attendance, and must be filtered out. "Absence reasons"
+counts `reason_category` on `not_going` rows and now reads for leaders too (they can see
+reasons for their circle).
 
 STUDENT
 - Attendance rate: circular progress ring, animated 0→value on mount, with meetings

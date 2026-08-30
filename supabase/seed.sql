@@ -125,17 +125,30 @@ begin
     returning id into v_ev3;
   end if;
 
-  insert into public.attendance (event_id, profile_id, status, marked_by)
+  -- Unified participation rows (RSVP + attendance are one record now). These
+  -- events are in the past, so 'going' reads as "attended" and 'not_going'
+  -- as "absent"; an excused absence is 'not_going' + a reason_category.
+  insert into public.event_rsvps
+    (event_id, profile_id, response, attend_mode, reason_category, note, marked_by, responded_at)
   values
-    (v_ev1, v_s1, 'present', v_lead1_id), (v_ev1, v_s2, 'present', v_lead1_id),
-    (v_ev1, v_s3, 'absent', v_lead1_id), (v_ev1, v_s4, 'present', v_lead1_id),
-    (v_ev1, v_s5, 'excused', v_lead1_id), (v_ev1, v_s6, 'present', v_lead1_id),
-    (v_ev2, v_s1, 'present', v_lead1_id), (v_ev2, v_s2, 'absent', v_lead1_id),
-    (v_ev2, v_s3, 'present', v_lead1_id), (v_ev2, v_s4, 'present', v_lead1_id),
-    (v_ev2, v_s5, 'present', v_lead1_id), (v_ev2, v_s6, 'present', v_lead1_id),
-    (v_ev3, v_s1, 'present', v_lead1_id), (v_ev3, v_s2, 'present', v_lead1_id),
-    (v_ev3, v_s3, 'present', v_lead1_id), (v_ev3, v_s4, 'excused', v_lead1_id),
-    (v_ev3, v_s5, 'present', v_lead1_id), (v_ev3, v_s6, 'absent', v_lead1_id)
+    (v_ev1, v_s1, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev1, v_s2, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev1, v_s3, 'not_going', null, null, null, v_lead1_id, now()),
+    (v_ev1, v_s4, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev1, v_s5, 'not_going', null, 'family', 'Excused', v_lead1_id, now()),
+    (v_ev1, v_s6, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev2, v_s1, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev2, v_s2, 'not_going', null, null, null, v_lead1_id, now()),
+    (v_ev2, v_s3, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev2, v_s4, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev2, v_s5, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev2, v_s6, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev3, v_s1, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev3, v_s2, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev3, v_s3, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev3, v_s4, 'not_going', null, 'travel', 'Excused', v_lead1_id, now()),
+    (v_ev3, v_s5, 'going', 'in_person', null, null, v_lead1_id, now()),
+    (v_ev3, v_s6, 'not_going', null, null, null, v_lead1_id, now())
   on conflict (event_id, profile_id) do nothing;
 
   -- Two published assignments

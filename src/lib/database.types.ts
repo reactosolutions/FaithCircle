@@ -219,6 +219,10 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["event_invitees"]["Row"]>;
         Relationships: [];
       };
+      // The single participation record — "are you coming" and "did you
+      // come" are one row. `response` doubles as the attendance status
+      // (going = present, not_going = absent, not_going + a reason =
+      // excused); `attend_mode` is intent before the meeting, actual after.
       event_rsvps: {
         Row: {
           event_id: string;
@@ -228,6 +232,8 @@ export interface Database {
           attend_mode: AttendMode | null;
           reason: string | null;
           reason_category: ReasonCategory | null;
+          note: string | null;
+          marked_by: string | null;
         };
         Insert: Partial<Database["public"]["Tables"]["event_rsvps"]["Row"]> & {
           event_id: string;
@@ -236,6 +242,9 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["event_rsvps"]["Row"]>;
         Relationships: [];
       };
+      // `attendance` is now a read-only VIEW over event_rsvps (see
+      // schema.sql) in the old column shape — reads still work everywhere;
+      // writes go through event_rsvps via the attendance Server Actions.
       attendance: {
         Row: {
           id: string;
@@ -247,12 +256,8 @@ export interface Database {
           marked_at: string;
           mode: AttendMode | null;
         };
-        Insert: Partial<Database["public"]["Tables"]["attendance"]["Row"]> & {
-          event_id: string;
-          profile_id: string;
-          status: AttendanceStatus;
-        };
-        Update: Partial<Database["public"]["Tables"]["attendance"]["Row"]>;
+        Insert: never;
+        Update: never;
         Relationships: [];
       };
       assignments: {

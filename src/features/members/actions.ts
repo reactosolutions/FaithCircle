@@ -446,7 +446,14 @@ async function findProfilesWithHistory(
     { data: leaderRows },
     { data: primaryLeaderCircles },
   ] = await Promise.all([
-    supabase.from("attendance").select("profile_id").in("profile_id", profileIds),
+    // RSVP and attendance are one record; a plain RSVP is not history (per
+    // the note above), but a row someone actually recorded attendance on
+    // (marked_by set) is.
+    supabase
+      .from("event_rsvps")
+      .select("profile_id")
+      .in("profile_id", profileIds)
+      .not("marked_by", "is", null),
     supabase.from("submissions").select("profile_id").in("profile_id", profileIds),
     supabase.from("events").select("host_id").in("host_id", profileIds),
     supabase.from("assignments").select("created_by").in("created_by", profileIds),

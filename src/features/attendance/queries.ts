@@ -88,10 +88,13 @@ export async function getMemberAttendanceHistory(profileId: string) {
   if (!rows || rows.length === 0) return [];
 
   const eventIds = rows.map((row) => row.event_id);
+  // Past meetings only — RSVP and attendance are one record now, so a
+  // future "going" RSVP would otherwise show up here as attendance.
   const { data: events, error: eventsError } = await supabase
     .from("events")
     .select("id, title, starts_at")
-    .in("id", eventIds);
+    .in("id", eventIds)
+    .lt("starts_at", new Date().toISOString());
   if (eventsError) throw eventsError;
 
   const eventsById = new Map((events ?? []).map((event) => [event.id, event]));

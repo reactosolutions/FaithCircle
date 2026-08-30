@@ -13,6 +13,7 @@ import {
   canJoinMeeting,
   formatEventDate,
   formatEventTime,
+  isAttendanceOpen,
   minutesUntilJoinOpens,
 } from "@/features/events/format";
 import type { MeetProvider } from "@/lib/database.types";
@@ -184,7 +185,11 @@ export default async function EventDetailPage({
             {event.recurrence !== "none" && <Badge variant="outline">{t("recurring")}</Badge>}
           </div>
 
-          {user && (
+          {/* RSVP and attendance are one record. Before the meeting day the
+              member sets intent (RsvpControl); from the meeting day on they
+              set what actually happened (SelfAttendanceControl). Both write
+              the same event_rsvps row. */}
+          {user && !isAttendanceOpen(event.starts_at) && (
             <RsvpControl
               eventId={event.id}
               format={event.format}
@@ -195,13 +200,12 @@ export default async function EventDetailPage({
             />
           )}
 
-          {user && (
+          {user && isAttendanceOpen(event.starts_at) && (
             <SelfAttendanceControl
               eventId={event.id}
               format={event.format}
               initialStatus={ownAttendance?.status ?? null}
               initialMode={ownAttendance?.mode ?? null}
-              startsAt={event.starts_at}
             />
           )}
         </CardContent>

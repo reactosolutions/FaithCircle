@@ -31,8 +31,23 @@ export async function getMemberDashboardData(profileId: string) {
       .in("circle_id", circleIds)
       .eq("published", true)
       .order("due_at", { ascending: true, nullsFirst: false }),
-    supabase.from("attendance").select("status").eq("profile_id", profileId),
+    // Participation rows (RSVP + attendance are one record). Filtered to
+    // meetings that have already happened below, so a future "going" RSVP
+    // doesn't count toward the attendance rate.
+    supabase.from("attendance").select("status, event_id").eq("profile_id", profileId),
   ]);
+
+  const pastAttendance = await (async () => {
+    const eventIds = (attendanceRows ?? []).map((r) => r.event_id);
+    if (eventIds.length === 0) return [];
+    const { data: pastEvents } = await supabase
+      .from("events")
+      .select("id")
+      .in("id", eventIds)
+      .lt("starts_at", now);
+    const pastIds = new Set((pastEvents ?? []).map((e) => e.id));
+    return (attendanceRows ?? []).filter((r) => pastIds.has(r.event_id));
+  })();
 
   const assignmentIds = (assignments ?? []).map((a) => a.id);
   const { data: mySubmissions } =
@@ -52,8 +67,8 @@ export async function getMemberDashboardData(profileId: string) {
     })
     .slice(0, 5);
 
-  const total = attendanceRows?.length ?? 0;
-  const present = (attendanceRows ?? []).filter((r) => r.status === "present").length;
+  const total = pastAttendance.length;
+  const present = pastAttendance.filter((r) => r.status === "present").length;
   const attendanceRate = total > 0 ? Math.round((present / total) * 100) : null;
 
   return { upcomingEvents: upcomingEvents ?? [], pendingHomework, attendanceRate };
@@ -77,9 +92,12 @@ export async function getStudentChartsData(profileId: string) {
       : { data: [] };
   const eventById = new Map((eventRows ?? []).map((e) => [e.id, e]));
 
+  // Only meetings that have already happened — a future "going" RSVP is
+  // intent, not attendance (RSVP and attendance are one record now).
+  const nowIso = new Date().toISOString();
   const sorted = (attendanceRows ?? [])
     .map((row) => ({ ...row, startsAt: eventById.get(row.event_id)?.starts_at ?? "" }))
-    .filter((row) => row.startsAt)
+    .filter((row) => row.startsAt && row.startsAt < nowIso)
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
 
   const attendanceTimeline = sorted.slice(-12).map((row) => ({

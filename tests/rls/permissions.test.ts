@@ -238,7 +238,7 @@ describe("RLS enforcement — real writes and reads, not just has_permission()",
     expect(error).not.toBeNull();
   });
 
-  it("a student cannot insert their own attendance row — read-only per the matrix", async () => {
+  it("a student CAN record their own participation row (RSVP + attendance are one record)", async () => {
     const { data: anyEvent } = await admin
       .from("events")
       .select("id")
@@ -247,15 +247,29 @@ describe("RLS enforcement — real writes and reads, not just has_permission()",
       .single();
     expect(anyEvent).not.toBeNull();
 
-    const { error } = await student.from("attendance").insert({
-      event_id: anyEvent!.id,
-      profile_id: studentId,
-      status: "present",
-    });
+    const { error } = await student.from("event_rsvps").upsert(
+      { event_id: anyEvent!.id, profile_id: studentId, response: "going" },
+      { onConflict: "event_id,profile_id" },
+    );
+    expect(error).toBeNull();
+  });
+
+  it("a student cannot write ANOTHER member's participation row", async () => {
+    const { data: anyEvent } = await admin
+      .from("events")
+      .select("id")
+      .eq("circle_id", circleId)
+      .limit(1)
+      .single();
+
+    const { error } = await student.from("event_rsvps").upsert(
+      { event_id: anyEvent!.id, profile_id: leaderId, response: "not_going" },
+      { onConflict: "event_id,profile_id" },
+    );
     expect(error).not.toBeNull();
   });
 
-  it("a circle leader CAN take attendance in a circle they lead", async () => {
+  it("a circle leader CAN record attendance for a member in a circle they lead", async () => {
     const { data: event } = await leader
       .from("events")
       .select("id")
@@ -264,12 +278,10 @@ describe("RLS enforcement — real writes and reads, not just has_permission()",
       .single();
     expect(event).not.toBeNull();
 
-    const { error } = await leader
-      .from("attendance")
-      .upsert(
-        { event_id: event!.id, profile_id: studentId, status: "present", marked_by: leaderId },
-        { onConflict: "event_id,profile_id" },
-      );
+    const { error } = await leader.from("event_rsvps").upsert(
+      { event_id: event!.id, profile_id: studentId, response: "going", marked_by: leaderId },
+      { onConflict: "event_id,profile_id" },
+    );
     expect(error).toBeNull();
   });
 

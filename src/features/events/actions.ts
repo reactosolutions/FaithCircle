@@ -416,7 +416,9 @@ export async function rsvpToEvent(
     return { ok: false, error: "You need to sign in again." };
   }
 
-  const actor = await requirePermission("events.rsvp", { profileId: user.id });
+  // RSVP and attendance are one record now — the single write permission is
+  // attendance.record ('own' scope for every role covers your own row).
+  const actor = await requirePermission("attendance.record", { profileId: user.id });
   if (!actor.ok) return actor;
 
   const { data: event } = await supabase

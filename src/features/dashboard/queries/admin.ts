@@ -70,9 +70,13 @@ export async function getAdminRecentActivity(limit = 6) {
         .not("submitted_at", "is", null)
         .order("submitted_at", { ascending: false })
         .limit(limit),
+      // marked_by is null for a plain self-RSVP; non-null once someone
+      // actually recorded attendance (RSVP + attendance are one record
+      // now), which is what "recent attendance" means here.
       supabase
         .from("attendance")
         .select("id, event_id, profile_id, status, marked_at")
+        .not("marked_by", "is", null)
         .order("marked_at", { ascending: false })
         .limit(limit),
     ]);

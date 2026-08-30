@@ -4,8 +4,8 @@ import { refresh } from "next/cache";
 import { createClient, getCachedUser } from "@/lib/supabase/server";
 import { requirePermission } from "@/lib/permissions";
 import { notifyUsers } from "@/lib/notifications";
-import { isAttendanceOpen } from "@/features/events/format";
 import type { ActionResult } from "@/lib/action-result";
+import { responseFromStatus } from "./mapping";
 import { recordOwnAttendanceSchema, saveAttendanceSchema } from "./schema";
 
 export async function saveAttendance(input: unknown): Promise<ActionResult> {
@@ -21,7 +21,7 @@ export async function saveAttendance(input: unknown): Promise<ActionResult> {
   const lookupClient = await createClient();
   const { data: event } = await lookupClient
     .from("events")
-    .select("circle_id, starts_at")
+    .select("circle_id")
     .eq("id", parsed.data.eventId)
     .single();
   if (!event) {
@@ -31,27 +31,32 @@ export async function saveAttendance(input: unknown): Promise<ActionResult> {
   const actor = await requirePermission("attendance.record", { circleId: event.circle_id });
   if (!actor.ok) return actor;
 
-  // No future-dated attendance — see isAttendanceOpen's own comment. Checked
-  // here (not just hidden in the UI) since this is the actual write path.
-  if (!isAttendanceOpen(event.starts_at)) {
-    return { ok: false, error: "Attendance can't be recorded before the day of the meeting." };
-  }
-
-  const rows = parsed.data.entries.map((entry) => ({
-    event_id: parsed.data.eventId,
-    profile_id: entry.profileId,
-    status: entry.status,
-    note: entry.note ?? null,
-    // How they ACTUALLY attended — never copied in from the RSVP's
-    // attend_mode by this action; the caller decides whether to keep the
-    // expected mode or override it.
-    mode: entry.mode ?? null,
-    marked_by: actor.userId,
-    marked_at: new Date().toISOString(),
-  }));
+  // RSVP and attendance are one record — this writes event_rsvps directly
+  // (present -> going, absent/excused -> not_going + reason). No date lock:
+  // the merged record is editable any time, last write wins.
+  const now = new Date().toISOString();
+  const rows = parsed.data.entries.map((entry) => {
+    const { response, reasonCategory } = responseFromStatus(entry.status);
+    return {
+      event_id: parsed.data.eventId,
+      profile_id: entry.profileId,
+      response,
+      reason_category: reasonCategory,
+      // Cleared explicitly so a stale free-text reason from an earlier
+      // "can't make it" RSVP doesn't make statusFromResponse read "absent"
+      // back as "excused".
+      reason: null,
+      note: entry.note ?? null,
+      // How they ACTUALLY attended — the caller decides whether to keep the
+      // expected mode or override it; not auto-copied from anything.
+      attend_mode: entry.mode ?? null,
+      marked_by: actor.userId,
+      responded_at: now,
+    };
+  });
 
   const { error } = await actor.supabase
-    .from("attendance")
+    .from("event_rsvps")
     .upsert(rows, { onConflict: "event_id,profile_id" });
 
   if (error) {
@@ -95,27 +100,26 @@ export async function recordOwnAttendance(input: unknown): Promise<ActionResult>
 
   const { data: event } = await actor.supabase
     .from("events")
-    .select("title, circle_id, starts_at")
+    .select("title, circle_id")
     .eq("id", parsed.data.eventId)
     .single();
   if (!event) {
     return { ok: false, error: "That meeting no longer exists." };
   }
 
-  // No future-dated attendance — see isAttendanceOpen's own comment. Checked
-  // here (not just hidden in the UI) since this is the actual write path.
-  if (!isAttendanceOpen(event.starts_at)) {
-    return { ok: false, error: "You can mark your attendance starting the day of the meeting." };
-  }
-
-  const { error } = await actor.supabase.from("attendance").upsert(
+  // Writes the one participation record (event_rsvps). No date lock — the
+  // merged record is editable any time; last write wins.
+  const { response, reasonCategory } = responseFromStatus(parsed.data.status);
+  const { error } = await actor.supabase.from("event_rsvps").upsert(
     {
       event_id: parsed.data.eventId,
       profile_id: user.id,
-      status: parsed.data.status,
-      mode: parsed.data.mode ?? null,
+      response,
+      reason_category: reasonCategory,
+      reason: null,
+      attend_mode: parsed.data.mode ?? null,
       marked_by: user.id,
-      marked_at: new Date().toISOString(),
+      responded_at: new Date().toISOString(),
     },
     { onConflict: "event_id,profile_id" },
   );

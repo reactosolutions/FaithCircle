@@ -203,15 +203,29 @@ export async function getCircleChartsData(circleId: string) {
       return { label: new Date(event.starts_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }), value: pct };
     });
 
-  // Attendance for the whole membership, all-time — shared by the format-mix
-  // donut and the per-member engagement chart below, so this is fetched once.
-  const { data: allMemberAttendanceRows } =
-    memberIds.length > 0
-      ? await supabase.from("attendance").select("profile_id, status, mode").in("profile_id", memberIds)
+  // Attendance for the whole membership across every past meeting in this
+  // circle — shared by the format-mix donut and the per-member engagement
+  // chart below. Scoped to past events since RSVP and attendance are one
+  // record now; a future "going" RSVP isn't attendance.
+  const { data: pastCircleEventRows } = await supabase
+    .from("events")
+    .select("id")
+    .eq("circle_id", circleId)
+    .lte("starts_at", now);
+  const pastCircleEventIds = new Set((pastCircleEventRows ?? []).map((e) => e.id));
+
+  const { data: allMemberAttendanceRowsRaw } =
+    memberIds.length > 0 && pastCircleEventIds.size > 0
+      ? await supabase
+          .from("attendance")
+          .select("profile_id, status, mode, event_id")
+          .in("profile_id", memberIds)
+          .in("event_id", Array.from(pastCircleEventIds))
       : { data: [] };
+  const allMemberAttendanceRows = allMemberAttendanceRowsRaw ?? [];
   const formatMix = {
-    in_person: (allMemberAttendanceRows ?? []).filter((r) => r.mode === "in_person").length,
-    online: (allMemberAttendanceRows ?? []).filter((r) => r.mode === "online").length,
+    in_person: allMemberAttendanceRows.filter((r) => r.mode === "in_person").length,
+    online: allMemberAttendanceRows.filter((r) => r.mode === "online").length,
   };
 
   // submission funnel

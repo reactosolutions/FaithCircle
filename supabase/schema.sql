@@ -334,7 +334,6 @@ insert into public.permissions (key, resource, action, description) values
   ('events.create', 'events', 'create', 'Schedule a meeting'),
   ('events.edit', 'events', 'edit', 'Edit a meeting'),
   ('events.delete', 'events', 'delete', 'Cancel/delete a meeting'),
-  ('events.rsvp', 'events', 'rsvp', 'RSVP to a meeting'),
   ('events.host_self', 'events', 'host_self', 'Volunteer yourself as a meeting host'),
   ('attendance.view', 'attendance', 'view', 'See attendance records'),
   ('attendance.record', 'attendance', 'record', 'Take attendance'),
@@ -406,10 +405,6 @@ insert into public.role_permissions (role, permission_key, scope) values
   ('admin', 'events.delete', 'all'),
   ('administrative', 'events.delete', 'circle'),
 
-  ('admin', 'events.rsvp', 'own'),
-  ('administrative', 'events.rsvp', 'own'),
-  ('student', 'events.rsvp', 'own'),
-
   -- Self-service: put YOURSELF forward as host on a meeting you're invited
   -- to. 'own' for every role — the claim_event_host() function does the
   -- membership/format checks; this key just gates the UI mirror + the
@@ -455,6 +450,13 @@ insert into public.role_permissions (role, permission_key, scope) values
   ('admin', 'data.export', 'all'),
   ('administrative', 'data.export', 'circle')
 on conflict (role, permission_key) do update set scope = excluded.scope;
+
+-- Retired: 'events.rsvp' merged into 'attendance.record'/'attendance.view'
+-- when the RSVP and attendance records were unified (one participation row
+-- per event+person). Explicit deletes so re-running this script against a
+-- database seeded before the merge cleans the stale rows out.
+delete from public.role_permissions where permission_key = 'events.rsvp';
+delete from public.permissions where key = 'events.rsvp';
 
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid()
@@ -555,40 +557,101 @@ create table if not exists public.event_rsvps (
   primary key (event_id, profile_id)
 );
 
+-- event_rsvps is the SINGLE per-(event, profile) participation record —
+-- "are you coming" and "did you come" are one field, not two tables. The
+-- old separate `attendance` table is folded in below and dropped. `response`
+-- keeps its name and its 4-value enum (going / not_going / tentative /
+-- no_response); the UI relabels it past-tense once the meeting is over.
+-- present -> going, absent -> not_going, excused -> not_going + a reason.
 alter table public.event_rsvps add column if not exists response public.rsvp_response not null default 'no_response';
+-- Last time this row was touched, by anyone (self or a leader). Serves as
+-- both "when they responded" and "when attendance was taken" — one field,
+-- because it's one record and last write wins.
 alter table public.event_rsvps add column if not exists responded_at timestamptz;
--- Required when response = 'going' on a hybrid event, forced to the only
--- valid value on single-format events — a Postgres CHECK can't reach across
--- to the events table to know the format, so this is enforced in Zod +
--- the Server Action instead.
+-- in_person / online — intent before the meeting, how they actually
+-- attended after. Required when response = 'going' on a hybrid event,
+-- forced to the only valid value on single-format events (checked in Zod +
+-- the Server Action, since a CHECK can't read events.format).
 alter table public.event_rsvps add column if not exists attend_mode public.attend_mode;
 alter table public.event_rsvps add column if not exists reason text;
--- Applies in both directions: a reason for attending online instead of in
--- person is as useful to the leader as a reason for not attending at all.
+-- Applies in every direction it's useful to a leader: declining outright,
+-- attending online instead of in person on a hybrid meeting, and (post-
+-- merge) an "excused" absence — which is now just not_going + a reason.
 alter table public.event_rsvps add column if not exists reason_category public.reason_category;
+-- Free-text, leader-written (carried over from the old attendance.note).
+alter table public.event_rsvps add column if not exists note text;
+-- Who last set this row — null for a plain self-RSVP, the leader's id when
+-- they recorded/corrected it.
+alter table public.event_rsvps add column if not exists marked_by uuid references public.profiles (id) on delete set null;
 
-create table if not exists public.attendance (
-  id uuid primary key default gen_random_uuid()
-);
+-- ---- Fold the old `attendance` table into event_rsvps, then replace it ----
+-- with a compatibility VIEW (below), so RSVP and attendance are physically
+-- one record. This block is relkind-aware so it's safe to re-run: first
+-- pass sees a real table and migrates its rows; later passes see the view
+-- and just drop it before it's recreated. On conflict the attendance
+-- signal wins on status/mode/note/marked_by/timestamp (it's the "more
+-- real", usually later fact); any reason the RSVP already carried is kept.
+do $$
+declare
+  v_kind char;
+begin
+  select relkind into v_kind from pg_class where oid = to_regclass('public.attendance');
 
-alter table public.attendance add column if not exists event_id uuid references public.events (id) on delete cascade;
-alter table public.attendance add column if not exists profile_id uuid references public.profiles (id) on delete cascade;
-alter table public.attendance add column if not exists status public.attendance_status not null default 'present';
-alter table public.attendance alter column status drop default;
-alter table public.attendance add column if not exists note text;
-alter table public.attendance add column if not exists marked_by uuid references public.profiles (id) on delete set null;
-alter table public.attendance add column if not exists marked_at timestamptz not null default now();
--- How they ACTUALLY attended, which may differ from what they RSVP'd —
--- never copied in from the RSVP's attend_mode.
-alter table public.attendance add column if not exists mode public.attend_mode;
-alter table public.attendance alter column event_id set not null;
-alter table public.attendance alter column profile_id set not null;
+  if v_kind = 'r' then
+    insert into public.event_rsvps (
+      event_id, profile_id, response, attend_mode, reason, reason_category, note, marked_by, responded_at
+    )
+    select
+      a.event_id,
+      a.profile_id,
+      case a.status when 'present' then 'going'::public.rsvp_response
+                    else 'not_going'::public.rsvp_response end,
+      a.mode,
+      case when a.status = 'excused' then a.note end,
+      case when a.status = 'excused' then 'other'::public.reason_category end,
+      a.note,
+      a.marked_by,
+      a.marked_at
+    from public.attendance a
+    on conflict (event_id, profile_id) do update set
+      response = excluded.response,
+      attend_mode = coalesce(excluded.attend_mode, public.event_rsvps.attend_mode),
+      note = excluded.note,
+      marked_by = excluded.marked_by,
+      responded_at = excluded.responded_at,
+      reason = coalesce(public.event_rsvps.reason, excluded.reason),
+      reason_category = coalesce(public.event_rsvps.reason_category, excluded.reason_category);
+    drop table public.attendance cascade;
+  elsif v_kind = 'v' then
+    drop view public.attendance;
+  end if;
+end $$;
 
-do $$ begin
-  alter table public.attendance add constraint attendance_event_id_profile_id_key unique (event_id, profile_id);
--- A unique constraint is backed by an index, so a name collision raises
--- duplicate_table (42P07), not duplicate_object (42710) — catch both.
-exception when duplicate_object or duplicate_table then null; end $$;
+-- Compatibility view: exposes the merged event_rsvps row in the old
+-- `attendance` column shape (present / absent / excused, mode, marked_by,
+-- marked_at) so every reader — the attendance sheet, member history,
+-- dashboards, CSV export — keeps working untouched. The two write paths
+-- (saveAttendance / recordOwnAttendance) write event_rsvps directly.
+-- going -> present; not_going -> absent; not_going + a reason -> excused.
+-- security_invoker so event_rsvps' own RLS applies to whoever queries.
+create view public.attendance with (security_invoker = true) as
+select
+  (md5(r.event_id::text || ':' || r.profile_id::text))::uuid as id,
+  r.event_id,
+  r.profile_id,
+  (case
+     when r.response = 'going' then 'present'
+     when r.reason is not null or r.reason_category is not null then 'excused'
+     else 'absent'
+   end)::public.attendance_status as status,
+  r.note,
+  r.marked_by,
+  coalesce(r.responded_at, now()) as marked_at,
+  r.attend_mode as mode
+from public.event_rsvps r
+where r.response in ('going', 'not_going');
+
+grant select on public.attendance to authenticated;
 
 create table if not exists public.assignments (
   id uuid primary key default gen_random_uuid()
@@ -663,7 +726,6 @@ create index if not exists idx_events_circle_starts_at on public.events (circle_
 create index if not exists idx_events_parent on public.events (parent_event_id);
 create index if not exists idx_event_rsvps_profile on public.event_rsvps (profile_id);
 create index if not exists idx_events_format on public.events (format);
-create index if not exists idx_attendance_profile on public.attendance (profile_id);
 create index if not exists idx_assignments_circle on public.assignments (circle_id);
 create index if not exists idx_submissions_profile on public.submissions (profile_id);
 create index if not exists idx_submissions_assignment on public.submissions (assignment_id);
@@ -1051,7 +1113,6 @@ alter table public.events enable row level security;
 alter table public.event_circles enable row level security;
 alter table public.event_invitees enable row level security;
 alter table public.event_rsvps enable row level security;
-alter table public.attendance enable row level security;
 alter table public.assignments enable row level security;
 alter table public.submissions enable row level security;
 alter table public.notifications enable row level security;
@@ -1267,11 +1328,14 @@ create policy "event_invitees_write" on public.event_invitees for all
     )
   );
 
--- ---------- event_rsvps ----------
--- Read: your own row, or events.edit on the event's circle (the leader —
--- or the student who scheduled it, via created_by — managing headcount).
--- Write: events.rsvp, 'own' scope for every role — only your own RSVP, for
--- events you're a resolved member of.
+-- ---------- event_rsvps (unified participation: RSVP + attendance) ----------
+-- One row per (event, profile) covering both "are you coming" and "did you
+-- come". Read: your own row; a leader/admin via attendance.view on the
+-- event's circle; or the student who scheduled the meeting (events.edit +
+-- created_by) for their own headcount. Write: attendance.record — a
+-- leader/admin for any row in their circle (taking attendance for the
+-- room), or anyone for their OWN row on a meeting they're a resolved member
+-- of (self-RSVP / self-check-in). Last write wins; there's no date lock.
 
 drop policy if exists "event_rsvps_select" on public.event_rsvps;
 create policy "event_rsvps_select" on public.event_rsvps for select
@@ -1280,95 +1344,79 @@ create policy "event_rsvps_select" on public.event_rsvps for select
     or exists (
       select 1 from public.events e
       where e.id = event_rsvps.event_id
-        and public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
+        and (
+          public.has_permission(auth.uid(), 'attendance.view', e.circle_id, null)
+          or public.has_permission(auth.uid(), 'events.edit', e.circle_id, e.created_by)
+        )
     )
   );
 
 drop policy if exists "event_rsvps_write_self" on public.event_rsvps;
-create policy "event_rsvps_write_self" on public.event_rsvps for all
+drop policy if exists "event_rsvps_write" on public.event_rsvps;
+create policy "event_rsvps_write" on public.event_rsvps for all
   using (
-    public.has_permission(auth.uid(), 'events.rsvp', null, profile_id)
-    and public.is_event_member(event_rsvps.event_id)
+    exists (
+      select 1 from public.events e
+      where e.id = event_rsvps.event_id
+        and public.has_permission(auth.uid(), 'attendance.record', e.circle_id, null)
+    )
+    or (
+      public.has_permission(auth.uid(), 'attendance.record', null, profile_id)
+      and public.is_event_member(event_rsvps.event_id)
+    )
   )
   with check (
-    public.has_permission(auth.uid(), 'events.rsvp', null, profile_id)
-    and public.is_event_member(event_rsvps.event_id)
+    exists (
+      select 1 from public.events e
+      where e.id = event_rsvps.event_id
+        and public.has_permission(auth.uid(), 'attendance.record', e.circle_id, null)
+    )
+    or (
+      public.has_permission(auth.uid(), 'attendance.record', null, profile_id)
+      and public.is_event_member(event_rsvps.event_id)
+    )
   );
 
--- Row-level security above intentionally still lets a circle leader SELECT
--- an RSVP row for planning (headcount, who's going online vs in person) —
--- that's unchanged. But the free-text `reason`/`reason_category` are
--- admin-only, not leader-visible, even though the row itself is: RLS can
--- only grant or deny a whole row, never redact one column while exposing
--- the rest, so that split has to happen in a view instead. Every read of
--- reason/reason_category for display (not the caller's own row) should go
--- through this view, never the base table directly. security_invoker is
--- required here, not optional — without it, this view would run with the
--- privileges of whoever owns it (the role that ran this script), which on
--- some Postgres setups bypasses RLS entirely regardless of who's actually
--- querying.
+-- The RLS above lets a leader SELECT the whole participation row for the
+-- room (headcount, in-person vs online, present/absent). The free-text
+-- reason / reason_category stay narrower — visible to an admin, the row's
+-- own owner, and (post-merge) a leader who can record attendance for that
+-- circle, since they're the one entering "excused" reasons. RLS can't
+-- redact one column while exposing the rest, so that split lives in this
+-- view. Reads of another person's reason for DISPLAY must go through it,
+-- never event_rsvps directly. security_invoker is required, not optional —
+-- without it the view runs as its owner and bypasses RLS.
 drop view if exists public.event_rsvps_visible;
 create view public.event_rsvps_visible
   with (security_invoker = true)
 as
 select
-  event_id,
-  profile_id,
-  response,
-  responded_at,
-  attend_mode,
-  case when public.is_admin() or profile_id = auth.uid() then reason else null end as reason,
-  case when public.is_admin() or profile_id = auth.uid() then reason_category else null end as reason_category
-from public.event_rsvps;
+  r.event_id,
+  r.profile_id,
+  r.response,
+  r.responded_at,
+  r.attend_mode,
+  r.note,
+  r.marked_by,
+  case
+    when public.is_admin()
+      or r.profile_id = auth.uid()
+      or public.has_permission(
+           auth.uid(), 'attendance.record',
+           (select e.circle_id from public.events e where e.id = r.event_id), null)
+    then r.reason
+  end as reason,
+  case
+    when public.is_admin()
+      or r.profile_id = auth.uid()
+      or public.has_permission(
+           auth.uid(), 'attendance.record',
+           (select e.circle_id from public.events e where e.id = r.event_id), null)
+    then r.reason_category
+  end as reason_category
+from public.event_rsvps r;
 
 grant select on public.event_rsvps_visible to authenticated;
-
--- ---------- attendance ----------
--- Read: attendance.view (admin=all, administrative=circle, student=own).
--- Write: attendance.record (admin=all, administrative=circle, student=own —
--- a student may only ever write their OWN row, and only for an event they're
--- a resolved member of; the leader's/admin's circle-scoped write is
--- unrestricted by membership since taking attendance for the room is their
--- job). Self-recorded and leader-recorded attendance share the same row —
--- there's no separate "self-reported" column, so whichever was written last
--- wins; that's an accepted tradeoff of this scope, not an oversight.
-
-drop policy if exists "attendance_select" on public.attendance;
-create policy "attendance_select" on public.attendance for select
-  using (
-    public.has_permission(auth.uid(), 'attendance.view', null, profile_id)
-    or exists (
-      select 1 from public.events e
-      where e.id = attendance.event_id
-        and public.has_permission(auth.uid(), 'attendance.view', e.circle_id, null)
-    )
-  );
-
-drop policy if exists "attendance_write_leader" on public.attendance;
-drop policy if exists "attendance_write" on public.attendance;
-create policy "attendance_write" on public.attendance for all
-  using (
-    exists (
-      select 1 from public.events e
-      where e.id = attendance.event_id
-        and public.has_permission(auth.uid(), 'attendance.record', e.circle_id, null)
-    )
-    or (
-      public.has_permission(auth.uid(), 'attendance.record', null, profile_id)
-      and public.is_event_member(attendance.event_id)
-    )
-  )
-  with check (
-    exists (
-      select 1 from public.events e
-      where e.id = attendance.event_id
-        and public.has_permission(auth.uid(), 'attendance.record', e.circle_id, null)
-    )
-    or (
-      public.has_permission(auth.uid(), 'attendance.record', null, profile_id)
-      and public.is_event_member(attendance.event_id)
-    )
-  );
 
 -- ---------- assignments ----------
 -- Read: assignments.view (admin/leader see everything including drafts;
@@ -1677,7 +1725,7 @@ begin
   foreach t in array array[
     'profiles', 'circles', 'circle_members', 'circle_leaders',
     'role_permissions', 'events', 'event_circles', 'event_invitees',
-    'event_rsvps', 'attendance', 'assignments', 'submissions',
+    'event_rsvps', 'assignments', 'submissions',
     'notifications', 'host_blackout_dates', 'join_requests', 'org_settings'
   ]
   loop
@@ -1716,7 +1764,6 @@ as $$
     when 'event_circles' then (select circle_id from public.event_circles where event_id = p_record_id limit 1)
     when 'event_invitees' then (select e.circle_id from public.event_invitees ei join public.events e on e.id = ei.event_id where ei.id = p_record_id)
     when 'event_rsvps' then (select e.circle_id from public.events e where e.id = p_record_id)
-    when 'attendance' then (select e.circle_id from public.attendance att join public.events e on e.id = att.event_id where att.id = p_record_id)
     when 'assignments' then (select circle_id from public.assignments where id = p_record_id)
     when 'submissions' then (select a.circle_id from public.submissions s join public.assignments a on a.id = s.assignment_id where s.id = p_record_id)
     else null
