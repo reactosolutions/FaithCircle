@@ -60,10 +60,29 @@ export default async function MemberDetailPage({
             <dd className="min-w-0 break-words">{member.phone || "—"}</dd>
             <dt className="text-muted-foreground">{t("detailCanHost")}</dt>
             <dd className="min-w-0 break-words">{member.can_host ? t("yes") : t("no")}</dd>
-            {member.can_host && (
+            {(member.home_address || member.home_maps_url) && (
               <>
                 <dt className="text-muted-foreground">{t("detailHomeAddress")}</dt>
-                <dd className="min-w-0 break-words">{member.home_address || "—"}</dd>
+                <dd className="min-w-0 break-words">
+                  {member.home_address || "—"}
+                  {member.home_maps_url && (
+                    <>
+                      {" "}
+                      <a
+                        href={member.home_maps_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="whitespace-nowrap underline underline-offset-2"
+                      >
+                        {t("viewOnMap")}
+                      </a>
+                    </>
+                  )}
+                </dd>
+              </>
+            )}
+            {member.can_host && (
+              <>
                 <dt className="text-muted-foreground">{t("detailHostCapacity")}</dt>
                 <dd className="min-w-0 break-words">{member.host_capacity ?? "—"}</dd>
               </>

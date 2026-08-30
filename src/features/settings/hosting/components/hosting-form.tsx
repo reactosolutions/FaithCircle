@@ -33,21 +33,32 @@ export function HostingForm({ profile }: { profile: Profile }) {
         <Switch id="canHost" name="canHost" checked={canHost} onCheckedChange={setCanHost} />
       </div>
 
+      {/* Address + map link are for everyone, not just hosts — an entry in
+          the directory is useful whether or not you host. */}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="homeAddress">{t("homeAddressLabel")}</Label>
+        <Input
+          id="homeAddress"
+          name="homeAddress"
+          defaultValue={profile.home_address ?? ""}
+          placeholder={t("homeAddressPlaceholder")}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="homeMapsUrl">{t("mapsLinkLabel")}</Label>
+        <Input
+          id="homeMapsUrl"
+          name="homeMapsUrl"
+          type="url"
+          inputMode="url"
+          defaultValue={profile.home_maps_url ?? ""}
+          placeholder={t("mapsLinkPlaceholder")}
+        />
+        <span className="text-xs text-muted-foreground">{t("mapsLinkHint")}</span>
+      </div>
+
       {canHost && (
         <>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="homeAddress">{t("homeAddressLabel")}</Label>
-            <Input
-              id="homeAddress"
-              name="homeAddress"
-              defaultValue={profile.home_address ?? ""}
-              placeholder={t("homeAddressPlaceholder")}
-            />
-            {/* A drag-pin map for correcting the geocoded location is
-                deferred — it needs a map provider decision (Mapbox/Google/
-                Leaflet+OSM) with real cost/key implications, which isn't
-                mine to make silently. Plain address text for now. */}
-          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="hostCapacity">{t("hostCapacityLabel")}</Label>
             <Input

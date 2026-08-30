@@ -129,6 +129,10 @@ alter table public.profiles add column if not exists created_at timestamptz not 
 
 -- Settings: HOSTING
 alter table public.profiles add column if not exists home_arrival_notes text;
+-- A Google Maps (or any) link to the member's home. Editable by everyone in
+-- Settings > Hosting, not gated behind can_host — an address/pin is useful
+-- for the directory whether or not they host.
+alter table public.profiles add column if not exists home_maps_url text;
 
 -- Settings: NOTIFICATIONS — one jsonb matrix (type -> {in_app, email}) rather
 -- than 14 boolean columns; the UI renders it as a grid but the shape can
@@ -1654,6 +1658,7 @@ insert into public.audit_exclusions (table_name, column_name) values
   ('submissions', 'answer_text'),
   ('submissions', 'feedback'),
   ('profiles', 'home_address'),
+  ('profiles', 'home_maps_url'),
   ('profiles', 'home_lat'),
   ('profiles', 'home_lng'),
   ('profiles', 'phone'),

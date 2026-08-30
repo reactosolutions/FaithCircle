@@ -7,6 +7,7 @@ const emptyToUndefined = (value: unknown) => (value === "" || value === null ? u
 export const updateHostingSchema = z.object({
   canHost: z.preprocess((value) => value === "on" || value === "true", z.boolean()),
   homeAddress: z.preprocess(emptyToUndefined, z.string().trim().optional()),
+  homeMapsUrl: z.preprocess(emptyToUndefined, z.url().optional()),
   hostCapacity: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().optional()),
   homeArrivalNotes: z.preprocess(emptyToUndefined, z.string().trim().optional()),
 });

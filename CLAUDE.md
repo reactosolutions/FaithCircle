@@ -204,7 +204,9 @@ that losing those is fine) — safe to delete over.
 
 ## Schema (Supabase)
 - profiles — id (= auth.users.id), full_name, email, phone, role, avatar_url,
-  can_host, home_address, home_lat, home_lng, host_capacity, status
+  can_host, home_address, home_maps_url, home_lat, home_lng, host_capacity, status
+  (home_address + home_maps_url are editable by every role in Settings > Hosting,
+  not gated behind can_host)
 - circles — id, name, description, leader_id, created_at
 - circle_members — circle_id, profile_id, joined_at  (composite PK)
 - events — id, circle_id, title, description, starts_at, ends_at, host_id,
@@ -349,7 +351,8 @@ addresses, phone numbers, meeting links, homework answers, and private feedback.
 an exclusion list per table in a config table, and have the trigger strip those keys from
 old_data/new_data while still recording the field name in changed_fields. At minimum
 exclude: submissions.answer_text, submissions.feedback, profiles.home_address,
-profiles.home_lat, profiles.home_lng, profiles.phone, events.meet_url.
+profiles.home_maps_url, profiles.home_lat, profiles.home_lng, profiles.phone,
+events.meet_url.
 The audit records THAT a field changed and by whom — not always WHAT it changed to.
 
 Not covered by triggers — log these explicitly from the app

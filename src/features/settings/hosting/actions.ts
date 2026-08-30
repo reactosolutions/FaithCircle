@@ -12,6 +12,7 @@ export async function updateHosting(
   const parsed = updateHostingSchema.safeParse({
     canHost: formData.get("canHost"),
     homeAddress: formData.get("homeAddress"),
+    homeMapsUrl: formData.get("homeMapsUrl"),
     hostCapacity: formData.get("hostCapacity"),
     homeArrivalNotes: formData.get("homeArrivalNotes"),
   });
@@ -30,6 +31,7 @@ export async function updateHosting(
     .update({
       can_host: parsed.data.canHost,
       home_address: parsed.data.homeAddress ?? null,
+      home_maps_url: parsed.data.homeMapsUrl ?? null,
       host_capacity: parsed.data.hostCapacity ?? null,
       home_arrival_notes: parsed.data.homeArrivalNotes ?? null,
     })

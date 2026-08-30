@@ -83,6 +83,7 @@ export interface Database {
           status: ProfileStatus;
           created_at: string;
           home_arrival_notes: string | null;
+          home_maps_url: string | null;
           notification_prefs: NotificationPrefs;
           reminder_lead_time: ReminderLeadTime;
           quiet_hours_start: string | null;
