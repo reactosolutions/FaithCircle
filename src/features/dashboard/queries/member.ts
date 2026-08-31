@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { pastEventIdSet } from "@/features/events/queries";
+import { startOfTodayIso } from "@/features/events/format";
 
 // Shared by the student view and the leader view — an administrative user
 // answers homework and has upcoming meetings just like a student, per
@@ -17,13 +18,14 @@ export async function getMemberDashboardData(profileId: string) {
     return { upcomingEvents: [], pendingHomework: [], attendanceRate: null };
   }
 
-  const now = new Date().toISOString();
   const [{ data: upcomingEvents }, { data: assignments }, { data: attendanceRows }] = await Promise.all([
     supabase
       .from("events")
       .select("id, title, starts_at, format, circle_id, host_id")
       .in("circle_id", circleIds)
-      .gte("starts_at", now)
+      // From midnight today, not "right now" — a meeting earlier today is
+      // still the current gathering, not a past one.
+      .gte("starts_at", startOfTodayIso())
       .order("starts_at")
       .limit(5),
     supabase

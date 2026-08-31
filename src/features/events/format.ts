@@ -1,4 +1,4 @@
-import { formatInTimeZone } from "date-fns-tz";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { useTranslations } from "next-intl";
 import type { EventFormat, MeetProvider } from "@/lib/database.types";
 
@@ -17,6 +17,15 @@ export function formatEventDate(iso: string) {
 
 export function formatEventTime(iso: string) {
   return formatInTimeZone(new Date(iso), CIRCLE_TIME_ZONE, "h:mm a");
+}
+
+// Midnight *today* in the circle's timezone, as a UTC ISO string. The
+// dashboards use this as the "upcoming" cutoff so a meeting earlier today
+// still counts as current — a meeting that started this morning shouldn't
+// drop off the dashboard and be replaced by next week's.
+export function startOfTodayIso(now = new Date()): string {
+  const dayKey = formatInTimeZone(now, CIRCLE_TIME_ZONE, "yyyy-MM-dd");
+  return fromZonedTime(`${dayKey}T00:00:00`, CIRCLE_TIME_ZONE).toISOString();
 }
 
 // Weekday + date in the circle's timezone — for confirm prompts that need

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { startOfTodayIso } from "@/features/events/format";
 
 // Preview rows for the admin dashboard's "Needs your approval" card: the
 // oldest few self-service/org-invite-link signups (profiles.status =
@@ -52,14 +53,14 @@ export async function getPendingApprovals(limit = 5) {
 // actually in.
 export async function getAdminRecentActivity(limit = 6) {
   const supabase = await createClient();
-  const now = new Date().toISOString();
 
   const [{ data: upcomingEvents }, { data: recentSubmissions }, { data: recentAttendance }] =
     await Promise.all([
       supabase
         .from("events")
         .select("id, title, starts_at, format, host_id")
-        .gte("starts_at", now)
+        // From midnight today so a meeting earlier today still shows.
+        .gte("starts_at", startOfTodayIso())
         .order("starts_at", { ascending: true })
         .limit(limit),
       // submitted_at is null for drafts — never actually submitted, so not
