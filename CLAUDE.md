@@ -490,6 +490,12 @@ Since RSVP and attendance are one record, every "attendance" figure below means
 counts `reason_category` on `not_going` rows and now reads for leaders too (they can see
 reasons for their circle).
 
+Alongside the overall attendance number, a **month-by-month breakdown** (each calendar
+month's present/total computed on its own, never diluted across months) appears on the
+student dashboard's attendance-timeline card, the member-detail attendance card, and each
+leader circle card. Shared: `monthlyAttendance()` in `features/attendance/monthly.ts` +
+the `MonthlyAttendanceBars` component.
+
 STUDENT
 - Attendance rate: circular progress ring, animated 0→value on mount, with meetings
   attended / total beneath.

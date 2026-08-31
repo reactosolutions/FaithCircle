@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { suggestNextHost } from "@/features/settings/circle/queries";
+import { monthlyAttendance } from "@/features/attendance/monthly";
 
 // Consecutive-absence streak from a member's most recent marked attendance
 // in a circle, stopping at the first present/excused row — matches the
@@ -226,6 +227,15 @@ export async function getCircleChartsData(circleId: string) {
     online: allMemberAttendanceRows.filter((r) => r.mode === "online").length,
   };
 
+  // Circle-wide attendance rate per calendar month.
+  const eventStartById = new Map(allCircleEvents.map((e) => [e.id, e.starts_at]));
+  const attendanceByMonth = monthlyAttendance(
+    allMemberAttendanceRows.map((r) => ({
+      startsAt: eventStartById.get(r.event_id) ?? "",
+      present: r.status === "present",
+    })),
+  );
+
   // submission funnel
   const assignmentIds = (assignments ?? []).map((a) => a.id);
   let funnel = { assigned: 0, submitted: 0, reviewed: 0 };
@@ -291,5 +301,13 @@ export async function getCircleChartsData(circleId: string) {
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
-  return { attendanceTrend, formatMix, funnel, memberEngagement, absenceReasons, hostRotation };
+  return {
+    attendanceTrend,
+    attendanceByMonth,
+    formatMix,
+    funnel,
+    memberEngagement,
+    absenceReasons,
+    hostRotation,
+  };
 }

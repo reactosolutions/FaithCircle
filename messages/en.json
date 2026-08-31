@@ -443,6 +443,8 @@
     "noMeetingsYet": "No meetings yet.",
     "noAttendanceRecorded": "No attendance recorded yet.",
     "meetingsAttended": "{present} of {total} meetings attended",
+    "byMonthTitle": "By month",
+    "byMonthCount": "{present}/{total} · {pct}%",
     "statusPresent": "Present",
     "statusExcused": "Excused",
     "statusAbsent": "Absent",

@@ -8,6 +8,7 @@ import { NextGatheringHero } from "./next-gathering-hero";
 import { ProgressRing } from "@/components/charts/progress-ring";
 import { ProportionalBar } from "@/components/charts/proportional-bar";
 import { AttendanceHistory } from "@/features/attendance/components/attendance-history";
+import { MonthlyAttendanceBars } from "@/features/attendance/components/monthly-attendance-bars";
 import { Icon } from "@/components/ui/icon";
 import { IconCircle } from "@/components/ui/icon-circle";
 import type { getMemberDashboardData, getStudentChartsData } from "../queries";
@@ -57,8 +58,9 @@ export function MemberDashboardSection({
           <CardHeader>
             <CardTitle className="text-base">{t("myAttendanceTimeline")}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-4">
             <AttendanceHistory entries={charts.attendanceTimeline} />
+            <MonthlyAttendanceBars months={charts.attendanceByMonth} />
           </CardContent>
         </Card>
       )}

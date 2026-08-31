@@ -443,6 +443,8 @@
     "noMeetingsYet": "لا توجد اجتماعات بعد.",
     "noAttendanceRecorded": "لم يُسجَّل حضور بعد.",
     "meetingsAttended": "{present} من {total} اجتماعات تم حضورها",
+    "byMonthTitle": "حسب الشهر",
+    "byMonthCount": "{present}/{total} · {pct}%",
     "statusPresent": "حاضر",
     "statusExcused": "معذور",
     "statusAbsent": "غائب",

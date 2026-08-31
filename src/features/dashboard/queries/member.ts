@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { pastEventIdSet } from "@/features/events/queries";
 import { startOfTodayIso } from "@/features/events/format";
+import { monthlyAttendance } from "@/features/attendance/monthly";
 
 // Shared by the student view and the leader view — an administrative user
 // answers homework and has upcoming meetings just like a student, per
@@ -103,6 +104,11 @@ export async function getStudentChartsData(profileId: string) {
     startsAt: row.startsAt,
   }));
 
+  // Per-calendar-month rate, from the full history (not the last-12 slice).
+  const attendanceByMonth = monthlyAttendance(
+    sorted.map((row) => ({ startsAt: row.startsAt, present: row.status === "present" })),
+  );
+
   let streak = 0;
   for (let i = sorted.length - 1; i >= 0; i--) {
     if (sorted[i].status !== "present") break;
@@ -143,5 +149,5 @@ export async function getStudentChartsData(profileId: string) {
     }
   }
 
-  return { attendanceTimeline, streak, homeworkBreakdown };
+  return { attendanceTimeline, attendanceByMonth, streak, homeworkBreakdown };
 }

@@ -9,6 +9,8 @@ import { AssignCirclesDialog } from "@/features/circles/components/assign-circle
 import { RoleBadge } from "@/features/members/components/role-badge";
 import { StatusBadge } from "@/features/members/components/status-badge";
 import { AttendanceHistory } from "@/features/attendance/components/attendance-history";
+import { MonthlyAttendanceBars } from "@/features/attendance/components/monthly-attendance-bars";
+import { monthlyAttendance } from "@/features/attendance/monthly";
 import { SubmissionHistory } from "@/features/homework/components/submission-history";
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
 import { EditMemberDialog } from "@/features/members/components/edit-member-dialog";
@@ -138,8 +140,13 @@ export default async function MemberDetailPage({
         <CardHeader>
           <CardTitle className="text-base">{t("attendanceHistoryTitle")}</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-4">
           <AttendanceHistory entries={history} />
+          <MonthlyAttendanceBars
+            months={monthlyAttendance(
+              history.map((h) => ({ startsAt: h.startsAt, present: h.status === "present" })),
+            )}
+          />
         </CardContent>
       </Card>
 

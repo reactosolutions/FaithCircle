@@ -8,6 +8,7 @@ import { BarWithAverage } from "@/components/charts/bar-with-average";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { HorizontalBarChart } from "@/components/charts/horizontal-bar-chart";
 import { ChartEmptyState } from "@/components/charts/chart-empty-state";
+import { MonthlyAttendanceBars } from "@/features/attendance/components/monthly-attendance-bars";
 import type { getCircleChartsData, getLeaderDashboardData } from "../queries";
 
 type CircleStat = Awaited<ReturnType<typeof getLeaderDashboardData>>["circleStats"][number];
@@ -151,6 +152,12 @@ function CircleDeepDive({
           />
         </div>
       </div>
+
+      {charts.attendanceByMonth.length > 0 && (
+        <div className="border-t border-border pt-4">
+          <MonthlyAttendanceBars months={charts.attendanceByMonth} />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5 border-t border-border pt-4">
         <h3 className="text-xs font-semibold text-muted-foreground">{t("memberEngagement")}</h3>
