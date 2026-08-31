@@ -13,6 +13,7 @@ import { SubmissionHistory } from "@/features/homework/components/submission-his
 import { AuditHistorySection } from "@/features/settings/organization/components/audit-history-section";
 import { EditMemberDialog } from "@/features/members/components/edit-member-dialog";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CopyButton } from "@/components/ui/copy-button";
 
 export default async function MemberDetailPage({
   params,
@@ -76,11 +77,10 @@ export default async function MemberDetailPage({
             {(member.home_address || member.home_maps_url) && (
               <>
                 <dt className="text-muted-foreground">{t("detailHomeAddress")}</dt>
-                <dd className="min-w-0 break-words">
-                  {member.home_address || "—"}
+                <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 break-words">
+                  <span className="min-w-0 break-words">{member.home_address || "—"}</span>
                   {member.home_maps_url && (
-                    <>
-                      {" "}
+                    <span className="inline-flex items-center gap-1">
                       <a
                         href={member.home_maps_url}
                         target="_blank"
@@ -89,7 +89,8 @@ export default async function MemberDetailPage({
                       >
                         {t("viewOnMap")}
                       </a>
-                    </>
+                      <CopyButton value={member.home_maps_url} label={t("copyMapLink")} />
+                    </span>
                   )}
                 </dd>
               </>

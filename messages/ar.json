@@ -180,6 +180,7 @@
     "no": "لا",
     "detailHomeAddress": "عنوان المنزل",
     "viewOnMap": "عرض على الخريطة",
+    "copyMapLink": "نسخ رابط الخريطة",
     "homeAddressLabel": "عنوان المنزل",
     "mapsLinkLabel": "رابط خرائط Google",
     "detailHostCapacity": "سعة الاستضافة",
@@ -303,6 +304,8 @@
     "hostConfirmYes": "نعم، سأستضيف",
     "hostClaimedToast": "أنت الآن مضيف هذا الاجتماع.",
     "hostReleasedToast": "لم تعد المضيف.",
+    "copyMapLink": "نسخ رابط الخريطة",
+    "copyMeetingLink": "نسخ رابط الاجتماع",
     "removeHost": "إزالة المضيف",
     "hostRemovedToast": "تمت إزالة المضيف.",
     "deleteTrigger": "حذف",
@@ -766,7 +769,10 @@
     "listViewLabel": "عرض القائمة",
     "cardViewLabel": "عرض البطاقات",
     "showMore": "عرض المزيد",
-    "showLess": "عرض أقل"
+    "showLess": "عرض أقل",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "copyFailed": "تعذّر النسخ"
   },
   "Signup": {
     "title": "أنشئ حسابك",

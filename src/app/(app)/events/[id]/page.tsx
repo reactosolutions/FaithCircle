@@ -28,6 +28,7 @@ import { AuditHistorySection } from "@/features/settings/organization/components
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/copy-button";
 import { Icon } from "@/components/ui/icon";
 import { hijri, mapsUrl } from "@/lib/format";
 
@@ -161,15 +162,18 @@ export default async function EventDetailPage({
                 {host ? t("hostedBy", { name: host.full_name ?? t("unnamed") }) : t("noHostAssigned")}
               </span>
               {addressMapsUrl && (
-                <a
-                  href={addressMapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                >
-                  <Icon name="location_on" size={14} className="shrink-0" />
-                  {event.address}
-                </a>
+                <span className="flex min-w-0 items-center gap-1">
+                  <a
+                    href={addressMapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-w-0 items-center gap-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    <Icon name="location_on" size={14} className="shrink-0" />
+                    <span className="truncate">{event.address}</span>
+                  </a>
+                  <CopyButton value={addressMapsUrl} label={t("copyMapLink")} className="shrink-0" />
+                </span>
               )}
               {event.in_person_capacity != null && (
                 <span className={overCapacity ? "text-destructive" : "text-muted-foreground"}>
@@ -199,15 +203,18 @@ export default async function EventDetailPage({
                 {event.meet_provider ? MEET_PROVIDER_LABEL[event.meet_provider] : t("meetingLinkFallback")}
               </span>
               {event.meet_notes && <span className="text-muted-foreground">{event.meet_notes}</span>}
-              {canJoin ? (
-                <Button size="sm" className="w-fit rounded-full" render={<a href={event.meet_url} target="_blank" rel="noreferrer" />}>
-                  {t("joinMeeting")}
-                </Button>
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  {minutesUntilOpen > 0 ? t("linkOpensIn", { minutes: minutesUntilOpen }) : t("linkOpensSoon")}
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {canJoin ? (
+                  <Button size="sm" className="w-fit rounded-full" render={<a href={event.meet_url} target="_blank" rel="noreferrer" />}>
+                    {t("joinMeeting")}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {minutesUntilOpen > 0 ? t("linkOpensIn", { minutes: minutesUntilOpen }) : t("linkOpensSoon")}
+                  </span>
+                )}
+                <CopyButton value={event.meet_url} label={t("copyMeetingLink")} />
+              </div>
             </div>
           )}
 
